@@ -331,6 +331,10 @@ if "df" in st.session_state:
         plot_df = plot_df.dropna(subset=["Date", rain_col])
         fig = px.line(plot_df, x="Date", y=rain_col,
                       labels={"Date": "Year", rain_col: "Rainfall (mm)"})
+        fig.update_traces(
+            hovertemplate="<b>%{x|%d %b %Y}</b><br>Rainfall: %{y} mm<extra></extra>"
+        )
+        fig.update_xaxes(tickformat="%d %b %Y")
         st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Annual Summary")
