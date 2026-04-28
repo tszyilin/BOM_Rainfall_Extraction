@@ -270,6 +270,7 @@ if search:
     # Store in session state so sidebar download buttons survive reruns
     st.session_state["df"]       = df
     st.session_state["info"]     = info
+    st.session_state["base"]     = base
     st.session_state["annual"]   = annual
     st.session_state["pivot"]    = pivot
     st.session_state["rain_col"] = rain_col
@@ -281,6 +282,7 @@ if search:
 if "df" in st.session_state:
     df       = st.session_state["df"]
     info     = st.session_state["info"]
+    base     = st.session_state["base"]
     annual   = st.session_state["annual"]
     pivot    = st.session_state["pivot"]
     rain_col = st.session_state["rain_col"]
