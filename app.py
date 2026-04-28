@@ -363,23 +363,29 @@ if "df" in st.session_state:
 
     if rain_col:
         st.subheader("Daily Rainfall Chart")
+        acc_label = "Accumulated (distributed)" if distribute else "Accumulated"
         plot_df = base[["Date", rain_col, "Accumulated"]].dropna(subset=["Date", rain_col]).copy()
-        plot_df["Type"] = plot_df["Accumulated"].map(
-            {True: "Accumulated (distributed)" if distribute else "Accumulated", False: "Daily"}
-        )
-        fig = px.line(plot_df, x="Date", y=rain_col,
-                      color="Type",
-                      color_discrete_map={
-                          "Daily": "#1f77b4",
-                          "Accumulated (distributed)": "#ff7f0e",
-                          "Accumulated": "#ff7f0e",
-                      },
-                      labels={"Date": "Year", rain_col: "Rainfall (mm)", "Type": ""})
-        fig.update_traces(
-            hovertemplate="<b>%{x|%d %b %Y}</b><br>Rainfall: %{y} mm<extra></extra>"
-        )
-        fig.update_xaxes(tickformat="%d %b %Y")
-        st.plotly_chart(fig, use_container_width=True)
+        plot_df["Type"] = plot_df["Accumulated"].map({True: acc_label, False: "Daily"})
+
+        show_options = sorted(plot_df["Type"].unique().tolist())
+        selected = st.multiselect("Show reading types:", show_options, default=show_options)
+
+        if selected:
+            plot_df = plot_df[plot_df["Type"].isin(selected)]
+            fig = px.line(plot_df, x="Date", y=rain_col,
+                          color="Type",
+                          color_discrete_map={
+                              "Daily": "#1f77b4",
+                              acc_label: "#ff7f0e",
+                          },
+                          labels={"Date": "Year", rain_col: "Rainfall (mm)", "Type": ""})
+            fig.update_traces(
+                hovertemplate="<b>%{x|%d %b %Y}</b><br>Rainfall: %{y} mm<extra></extra>"
+            )
+            fig.update_xaxes(tickformat="%d %b %Y")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Select at least one reading type to display the chart.")
 
         st.subheader("Annual Summary")
         st.dataframe(annual, use_container_width=True, hide_index=True)
