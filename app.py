@@ -228,7 +228,7 @@ if search:
                 # Distribute accumulated readings across preceding days
                 base = base.set_index("Date").sort_index()
                 rain_series = base[rain_col].copy()
-                # recompute mask against new index
+                distributed_dates = set()
                 acc_mask_idx = base[period_col] > 1
                 for date, row in base[acc_mask_idx].iterrows():
                     p = int(row[period_col])
@@ -240,7 +240,9 @@ if search:
                         d = date - pd.Timedelta(days=i)
                         if d in rain_series.index:
                             rain_series[d] = daily
+                            distributed_dates.add(d)
                 base[rain_col] = rain_series
+                base["Accumulated"] = base.index.isin(distributed_dates)
                 base = base.reset_index()
                 base["Year"]  = base["Date"].dt.year
                 base["Month"] = base["Date"].dt.month
@@ -367,7 +369,7 @@ if "df" in st.session_state:
 
     if rain_col:
         st.subheader("Daily Rainfall Chart")
-        acc_label = "Accumulated (distributed)" if distribute else "Accumulated"
+        acc_label = "Evenly Distributed" if distribute else "Accumulated"
         plot_df = base[["Date", rain_col, "Accumulated"]].dropna(subset=["Date", rain_col]).copy()
         plot_df["Type"] = plot_df["Accumulated"].map({True: acc_label, False: "Daily"})
 
