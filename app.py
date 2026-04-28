@@ -47,10 +47,11 @@ with st.sidebar:
     export_csv = st.checkbox("Save as CSV", value=True)
 
     st.markdown("**XLSX sheets to include:**")
-    inc_raw    = st.checkbox("Daily Rainfall (raw)", value=True)
-    inc_dist   = st.checkbox("Daily Rainfall (distributed)", value=False)
-    inc_annual = st.checkbox("Annual Summary", value=True)
-    inc_pivot  = st.checkbox("Monthly Pivot", value=True)
+    inc_raw         = st.checkbox("Daily Rainfall (raw)", value=True)
+    inc_dist        = st.checkbox("Daily Rainfall (distributed)", value=False)
+    inc_annual      = st.checkbox("Annual Summary", value=True)
+    inc_pivot       = st.checkbox("Monthly Pivot", value=True)
+    inc_miss_pivot  = st.checkbox("Missing Days Pivot", value=True)
 
 
 def make_session():
@@ -300,11 +301,11 @@ def build_base(df, rain_col, distribute):
             raw_missing = raw_missing.merge(covered, on="Year", how="left")
             raw_missing["Covered_Days"] = raw_missing["Covered_Days"].fillna(0).astype(int)
             raw_missing["Missing_Days"] = (
-                raw_missing["Missing_Days_Before"] - raw_missing["Covered_Days"]
+                raw_missing["Before Dis"] - raw_missing["Covered_Days"]
             ).clip(lower=0)
             raw_missing = raw_missing[["Year", "Missing_Days"]]
         else:
-            raw_missing = raw_missing.rename(columns={"Missing_Days_Before": "Missing_Days"})
+            raw_missing = raw_missing.rename(columns={"Before Dis": "Missing_Days"})
         annual = annual.merge(raw_missing, on="Year", how="left")
         annual = annual[["Year", "Accumulated_Readings", "Missing_Days", "Annual_Rainfall_mm"]]
 
@@ -315,7 +316,23 @@ def build_base(df, rain_col, distribute):
     pivot.rename(columns=month_names, inplace=True)
     pivot = pivot.reindex(columns=list(month_names.values())).round(1)
 
-    return base, annual, pivot
+    # Missing days pivot (before distribution — from raw df)
+    raw_df_num = df[["Year", "Month", rain_col]].copy()
+    raw_df_num[rain_col] = pd.to_numeric(raw_df_num[rain_col], errors="coerce")
+    miss_before_monthly = (raw_df_num.groupby(["Year", "Month"])[rain_col]
+                           .apply(lambda x: x.isna().sum()).reset_index())
+    miss_pivot_before = miss_before_monthly.pivot(index="Year", columns="Month", values=rain_col)
+    miss_pivot_before.rename(columns=month_names, inplace=True)
+    miss_pivot_before = miss_pivot_before.reindex(columns=list(month_names.values()))
+
+    # Missing days pivot (after distribution — from distributed base)
+    miss_after_monthly = (base.groupby(["Year", "Month"])[rain_col]
+                          .apply(lambda x: x.isna().sum()).reset_index())
+    miss_pivot_after = miss_after_monthly.pivot(index="Year", columns="Month", values=rain_col)
+    miss_pivot_after.rename(columns=month_names, inplace=True)
+    miss_pivot_after = miss_pivot_after.reindex(columns=list(month_names.values()))
+
+    return base, annual, pivot, miss_pivot_before, miss_pivot_after
 
 
 # Render from session state (persists after search)
@@ -329,9 +346,9 @@ if "df" in st.session_state:
 
     # Recompute base/annual/pivot live based on distribute toggle
     if rain_col:
-        base, annual, pivot = build_base(df, rain_col, distribute)
+        base, annual, pivot, miss_pivot_before, miss_pivot_after = build_base(df, rain_col, distribute)
     else:
-        base = annual = pivot = None
+        base = annual = pivot = miss_pivot_before = miss_pivot_after = None
 
     # ── Sidebar downloads ─────────────────────────────────────────────────────
     with st.sidebar:
@@ -345,18 +362,22 @@ if "df" in st.session_state:
                 mime="text/csv",
                 use_container_width=True,
             )
-        if rain_col and (inc_raw or inc_dist or inc_annual or inc_pivot):
+        if rain_col and (inc_raw or inc_dist or inc_annual or inc_pivot or inc_miss_pivot):
             xlsx_buf = io.BytesIO()
             with pd.ExcelWriter(xlsx_buf, engine="xlsxwriter") as writer:
                 if inc_raw:
                     df.to_excel(writer, sheet_name="Daily Rainfall", index=False)
                 if inc_dist and base is not None:
-                    dist_base, _, _ = build_base(df, rain_col, distribute=True)
+                    dist_base, _, _, _, _ = build_base(df, rain_col, distribute=True)
                     dist_base.to_excel(writer, sheet_name="Daily Rainfall (Dist)", index=False)
                 if inc_annual and annual is not None:
                     annual.to_excel(writer, sheet_name="Annual Summary", index=False)
                 if inc_pivot and pivot is not None:
                     pivot.to_excel(writer, sheet_name="Monthly Pivot")
+                if inc_miss_pivot and miss_pivot_before is not None:
+                    miss_pivot_before.to_excel(writer, sheet_name="Missing Days (Before Dis)")
+                    if distribute and miss_pivot_after is not None:
+                        miss_pivot_after.to_excel(writer, sheet_name="Missing Days (After Dis)")
             xlsx_buf.seek(0)
             st.download_button(
                 label="Download XLSX",
@@ -434,3 +455,13 @@ if "df" in st.session_state:
 
         st.subheader("Monthly Rainfall Pivot (mm)")
         st.dataframe(pivot, use_container_width=True)
+
+        st.subheader("Missing Days Pivot")
+        if distribute and miss_pivot_before is not None and miss_pivot_after is not None:
+            tab_before, tab_after = st.tabs(["Before Dis", "After Dis"])
+            with tab_before:
+                st.dataframe(miss_pivot_before, use_container_width=True)
+            with tab_after:
+                st.dataframe(miss_pivot_after, use_container_width=True)
+        elif miss_pivot_before is not None:
+            st.dataframe(miss_pivot_before, use_container_width=True)
