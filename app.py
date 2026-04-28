@@ -252,12 +252,21 @@ def build_base(df, rain_col, distribute):
         period_col = None
         base["Accumulated"] = False
 
+    # Raw missing days (before any distribution) — NaN count from raw base
+    raw_missing = (
+        df[["Year", rain_col]].copy()
+        .assign(**{rain_col: pd.to_numeric(df[rain_col], errors="coerce")})
+        .groupby("Year")[rain_col]
+        .apply(lambda x: x.isna().sum())
+        .reset_index()
+        .rename(columns={rain_col: "Missing_Days_Before"})
+    )
+
     # Annual summary
     annual = (
         base.groupby("Year")
         .agg(
             Accumulated_Readings=("Accumulated", "sum"),
-            Missing_Days=(rain_col, lambda x: x.isna().sum()),
             Annual_Rainfall_mm=(rain_col, "sum"),
         )
         .reset_index()
@@ -265,18 +274,38 @@ def build_base(df, rain_col, distribute):
     annual["Annual_Rainfall_mm"] = annual["Annual_Rainfall_mm"].round(1)
     annual["Accumulated_Readings"] = annual["Accumulated_Readings"].astype(int)
 
-    if period_col and not distribute:
-        covered = (
-            base[base[period_col] > 1]
-            .groupby("Year")[period_col]
-            .apply(lambda x: int((x - 1).sum()))
+    if distribute:
+        # After distribution: NaN count in distributed base
+        after_missing = (
+            base.groupby("Year")[rain_col]
+            .apply(lambda x: x.isna().sum())
             .reset_index()
+            .rename(columns={rain_col: "Missing_Days_After"})
         )
-        covered.columns = ["Year", "Covered_Days"]
-        annual = annual.merge(covered, on="Year", how="left")
-        annual["Covered_Days"] = annual["Covered_Days"].fillna(0).astype(int)
-        annual["Missing_Days"] = (annual["Missing_Days"] - annual["Covered_Days"]).clip(lower=0)
-        annual.drop(columns=["Covered_Days"], inplace=True)
+        annual = annual.merge(raw_missing, on="Year", how="left")
+        annual = annual.merge(after_missing, on="Year", how="left")
+        annual = annual[["Year", "Accumulated_Readings",
+                          "Missing_Days_Before", "Missing_Days_After", "Annual_Rainfall_mm"]]
+    else:
+        # Without distribution: subtract covered days from raw NaN count
+        if period_col:
+            covered = (
+                base[base[period_col] > 1]
+                .groupby("Year")[period_col]
+                .apply(lambda x: int((x - 1).sum()))
+                .reset_index()
+            )
+            covered.columns = ["Year", "Covered_Days"]
+            raw_missing = raw_missing.merge(covered, on="Year", how="left")
+            raw_missing["Covered_Days"] = raw_missing["Covered_Days"].fillna(0).astype(int)
+            raw_missing["Missing_Days"] = (
+                raw_missing["Missing_Days_Before"] - raw_missing["Covered_Days"]
+            ).clip(lower=0)
+            raw_missing = raw_missing[["Year", "Missing_Days"]]
+        else:
+            raw_missing = raw_missing.rename(columns={"Missing_Days_Before": "Missing_Days"})
+        annual = annual.merge(raw_missing, on="Year", how="left")
+        annual = annual[["Year", "Accumulated_Readings", "Missing_Days", "Annual_Rainfall_mm"]]
 
     month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
                    7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
