@@ -365,7 +365,14 @@ if "df" in st.session_state:
     st.success(f"Loaded {len(df):,} rows")
 
     st.subheader("Preview")
-    st.dataframe(df, use_container_width=True)
+    tab_raw, tab_dist = st.tabs(["Raw Data", "Distributed Data"])
+    with tab_raw:
+        st.dataframe(df, use_container_width=True)
+    with tab_dist:
+        if base is not None:
+            st.dataframe(base, use_container_width=True)
+        else:
+            st.info("No distributed data available.")
 
     if rain_col:
         st.subheader("Daily Rainfall Chart")
