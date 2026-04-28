@@ -48,7 +48,7 @@ with st.sidebar:
 
     st.markdown("**XLSX sheets to include:**")
     inc_raw         = st.checkbox("Daily Rainfall (raw)", value=True)
-    inc_dist        = st.checkbox("Daily Rainfall (distributed)", value=False)
+    inc_dist        = st.checkbox("Daily Rainfall (distributed)", value=False) if distribute else False
     inc_annual      = st.checkbox("Annual Summary", value=True)
     inc_pivot       = st.checkbox("Monthly Pivot", value=True)
     inc_miss_pivot  = st.checkbox("Missing Days Pivot", value=True)
