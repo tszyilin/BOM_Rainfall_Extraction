@@ -38,8 +38,8 @@ with st.sidebar:
         station_input = st.text_input("Station ID", value="012068", help="Enter a BOM station number (e.g. 012068)")
         search = st.form_submit_button("Search Rainfall Station", use_container_width=True)
     debug_mode = st.checkbox("Show debug info")
-    distribute = st.checkbox("Distribute accumulated rainfall evenly", value=True,
-                             help="Splits multi-day accumulated readings across preceding days so missing days aren't overestimated")
+    distribute = st.toggle("Distribute accumulated rainfall evenly", value=True,
+                           help="Splits multi-day accumulated readings across preceding days so missing days aren't overestimated")
 
     st.divider()
     st.subheader("Export")
