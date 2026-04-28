@@ -50,8 +50,9 @@ with st.sidebar:
     inc_raw         = st.checkbox("Daily Rainfall (raw)", value=True)
     inc_dist        = st.checkbox("Daily Rainfall (distributed)", value=False) if distribute else False
     inc_annual      = st.checkbox("Annual Summary", value=True)
-    inc_pivot       = st.checkbox("Monthly Pivot", value=True)
-    inc_miss_pivot  = st.checkbox("Missing Days Pivot", value=True)
+    inc_pivot            = st.checkbox("Monthly Pivot", value=True)
+    inc_miss_pivot_raw   = st.checkbox("Missing Days Pivot (raw)", value=True)
+    inc_miss_pivot_dist  = st.checkbox("Missing Days Pivot (distributed)", value=False) if distribute else False
 
 
 def make_session():
@@ -362,7 +363,7 @@ if "df" in st.session_state:
                 mime="text/csv",
                 use_container_width=True,
             )
-        if rain_col and (inc_raw or inc_dist or inc_annual or inc_pivot or inc_miss_pivot):
+        if rain_col and (inc_raw or inc_dist or inc_annual or inc_pivot or inc_miss_pivot_raw or inc_miss_pivot_dist):
             xlsx_buf = io.BytesIO()
             with pd.ExcelWriter(xlsx_buf, engine="xlsxwriter") as writer:
                 if inc_raw:
@@ -374,10 +375,10 @@ if "df" in st.session_state:
                     annual.to_excel(writer, sheet_name="Annual Summary", index=False)
                 if inc_pivot and pivot is not None:
                     pivot.to_excel(writer, sheet_name="Monthly Pivot")
-                if inc_miss_pivot and miss_pivot_before is not None:
+                if inc_miss_pivot_raw and miss_pivot_before is not None:
                     miss_pivot_before.to_excel(writer, sheet_name="Missing Days (Raw)")
-                    if distribute and miss_pivot_after is not None:
-                        miss_pivot_after.to_excel(writer, sheet_name="Missing Days (After)")
+                if inc_miss_pivot_dist and miss_pivot_after is not None:
+                    miss_pivot_after.to_excel(writer, sheet_name="Missing Days (Distributed)")
             xlsx_buf.seek(0)
             st.download_button(
                 label="Download XLSX",
