@@ -38,6 +38,8 @@ with st.sidebar:
         station_input = st.text_input("Station ID", value="012068", help="Enter a BOM station number (e.g. 012068)")
         search = st.form_submit_button("Search Rainfall Station", use_container_width=True)
     debug_mode = st.checkbox("Show debug info")
+    distribute = st.checkbox("Distribute accumulated rainfall evenly", value=True,
+                             help="Splits multi-day accumulated readings across preceding days so missing days aren't overestimated")
 
     st.divider()
     st.subheader("Export")
@@ -210,16 +212,52 @@ if search:
     base = None
     annual = None
     pivot = None
+    period_col = next((c for c in df.columns if "period" in c.lower()), None)
+
     if rain_col:
-        base = df[["Year", "Month", "Day", rain_col]].copy()
+        base = df[["Year", "Month", "Day", rain_col] + ([period_col] if period_col else [])].copy()
         base[rain_col] = pd.to_numeric(base[rain_col], errors="coerce")
+        base["Date"] = pd.to_datetime(base[["Year", "Month", "Day"]], errors="coerce")
+
+        if period_col:
+            base[period_col] = pd.to_numeric(base[period_col], errors="coerce").fillna(1).clip(lower=1)
+            acc_mask = base[period_col] > 1
+            base["Accumulated"] = acc_mask
+
+            if distribute:
+                # Distribute accumulated readings across preceding days
+                base = base.set_index("Date").sort_index()
+                rain_series = base[rain_col].copy()
+                for date, row in base[acc_mask].iterrows():
+                    p = int(row[period_col])
+                    r = row[rain_col]
+                    if pd.isna(r):
+                        continue
+                    daily = round(r / p, 1)
+                    for i in range(p):
+                        d = date - pd.Timedelta(days=i)
+                        if d in rain_series.index:
+                            rain_series[d] = daily
+                base[rain_col] = rain_series
+                base = base.reset_index()
+                base["Year"]  = base["Date"].dt.year
+                base["Month"] = base["Date"].dt.month
+        else:
+            base["Accumulated"] = False
+
+        # Annual summary
         annual = (
             base.groupby("Year")
-            .agg(Missing_Days=(rain_col, lambda x: x.isna().sum()),
-                 Annual_Rainfall_mm=(rain_col, "sum"))
+            .agg(
+                Accumulated_Readings=("Accumulated", "sum"),
+                Missing_Days=(rain_col, lambda x: x.isna().sum()),
+                Annual_Rainfall_mm=(rain_col, "sum"),
+            )
             .reset_index()
         )
         annual["Annual_Rainfall_mm"] = annual["Annual_Rainfall_mm"].round(1)
+        annual["Accumulated_Readings"] = annual["Accumulated_Readings"].astype(int)
+
         monthly = base.groupby(["Year", "Month"])[rain_col].sum().reset_index()
         pivot = monthly.pivot(index="Year", columns="Month", values=rain_col)
         month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
@@ -325,12 +363,18 @@ if "df" in st.session_state:
 
     if rain_col:
         st.subheader("Daily Rainfall Chart")
-        plot_df = df[["Year", "Month", "Day", rain_col]].copy()
-        plot_df[rain_col] = pd.to_numeric(plot_df[rain_col], errors="coerce")
-        plot_df["Date"] = pd.to_datetime(plot_df[["Year", "Month", "Day"]], errors="coerce")
-        plot_df = plot_df.dropna(subset=["Date", rain_col])
+        plot_df = base[["Date", rain_col, "Accumulated"]].dropna(subset=["Date", rain_col]).copy()
+        plot_df["Type"] = plot_df["Accumulated"].map(
+            {True: "Accumulated (distributed)" if distribute else "Accumulated", False: "Daily"}
+        )
         fig = px.line(plot_df, x="Date", y=rain_col,
-                      labels={"Date": "Year", rain_col: "Rainfall (mm)"})
+                      color="Type",
+                      color_discrete_map={
+                          "Daily": "#1f77b4",
+                          "Accumulated (distributed)": "#ff7f0e",
+                          "Accumulated": "#ff7f0e",
+                      },
+                      labels={"Date": "Year", rain_col: "Rainfall (mm)", "Type": ""})
         fig.update_traces(
             hovertemplate="<b>%{x|%d %b %Y}</b><br>Rainfall: %{y} mm<extra></extra>"
         )
