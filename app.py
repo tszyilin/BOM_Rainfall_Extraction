@@ -262,6 +262,21 @@ if search:
         annual["Annual_Rainfall_mm"] = annual["Annual_Rainfall_mm"].round(1)
         annual["Accumulated_Readings"] = annual["Accumulated_Readings"].astype(int)
 
+        # When not distributing, preceding days of accumulated readings are NaN
+        # but are covered by the accumulation — subtract them from missing days
+        if period_col and not distribute:
+            covered = (
+                base[base[period_col] > 1]
+                .groupby("Year")[period_col]
+                .apply(lambda x: int((x - 1).sum()))
+                .reset_index()
+            )
+            covered.columns = ["Year", "Covered_Days"]
+            annual = annual.merge(covered, on="Year", how="left")
+            annual["Covered_Days"] = annual["Covered_Days"].fillna(0).astype(int)
+            annual["Missing_Days"] = (annual["Missing_Days"] - annual["Covered_Days"]).clip(lower=0)
+            annual.drop(columns=["Covered_Days"], inplace=True)
+
         monthly = base.groupby(["Year", "Month"])[rain_col].sum().reset_index()
         pivot = monthly.pivot(index="Year", columns="Month", values=rain_col)
         month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
