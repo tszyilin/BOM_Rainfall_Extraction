@@ -193,7 +193,6 @@ if search:
     df.columns = df.columns.str.strip()
     rain_col = next((c for c in df.columns if "rainfall" in c.lower()), None)
 
-    # Parse lat/lon from the scraped info strings e.g. "30.93 ° S" → -30.93
     def parse_coord(s, neg_dir):
         if not s or s == "N/A":
             return None
@@ -208,104 +207,101 @@ if search:
     csv_lat = parse_coord(info.get("lat"), "S")
     csv_lon = parse_coord(info.get("lon"), "W")
 
-    # Pre-compute for downloads
-    base = None
-    annual = None
-    pivot = None
+    # Store only raw data — base/annual/pivot computed at render time
+    st.session_state["df"]         = df
+    st.session_state["info"]       = info
+    st.session_state["rain_col"]   = rain_col
+    st.session_state["station_id"] = station_input.zfill(6)
+    st.session_state["csv_lat"]    = csv_lat
+    st.session_state["csv_lon"]    = csv_lon
+
+
+def build_base(df, rain_col, distribute):
+    """Build working dataframe, optionally distributing accumulated readings."""
     period_col = next((c for c in df.columns if "period" in c.lower()), None)
+    cols = ["Year", "Month", "Day", rain_col] + ([period_col] if period_col else [])
+    base = df[cols].copy()
+    base[rain_col] = pd.to_numeric(base[rain_col], errors="coerce")
+    base["Date"] = pd.to_datetime(base[["Year", "Month", "Day"]], errors="coerce")
 
-    if rain_col:
-        base = df[["Year", "Month", "Day", rain_col] + ([period_col] if period_col else [])].copy()
-        base[rain_col] = pd.to_numeric(base[rain_col], errors="coerce")
-        base["Date"] = pd.to_datetime(base[["Year", "Month", "Day"]], errors="coerce")
+    if period_col:
+        base[period_col] = pd.to_numeric(base[period_col], errors="coerce").fillna(1).clip(lower=1)
+        base["Accumulated"] = base[period_col] > 1
 
-        if period_col:
-            base[period_col] = pd.to_numeric(base[period_col], errors="coerce").fillna(1).clip(lower=1)
-            acc_mask = base[period_col] > 1
-            base["Accumulated"] = acc_mask
+        if distribute:
+            base = base.set_index("Date").sort_index()
+            rain_series = base[rain_col].copy()
+            distributed_dates = set()
+            for date, row in base[base[period_col] > 1].iterrows():
+                p = int(row[period_col])
+                r = row[rain_col]
+                if pd.isna(r):
+                    continue
+                daily = round(r / p, 1)
+                for i in range(p):
+                    d = date - pd.Timedelta(days=i)
+                    if d in rain_series.index:
+                        rain_series[d] = daily
+                        distributed_dates.add(d)
+            base[rain_col] = rain_series
+            base["Accumulated"] = base.index.isin(distributed_dates)
+            base = base.reset_index()
+            base["Year"]  = base["Date"].dt.year
+            base["Month"] = base["Date"].dt.month
+    else:
+        period_col = None
+        base["Accumulated"] = False
 
-            if distribute:
-                # Distribute accumulated readings across preceding days
-                base = base.set_index("Date").sort_index()
-                rain_series = base[rain_col].copy()
-                distributed_dates = set()
-                acc_mask_idx = base[period_col] > 1
-                for date, row in base[acc_mask_idx].iterrows():
-                    p = int(row[period_col])
-                    r = row[rain_col]
-                    if pd.isna(r):
-                        continue
-                    daily = round(r / p, 1)
-                    for i in range(p):
-                        d = date - pd.Timedelta(days=i)
-                        if d in rain_series.index:
-                            rain_series[d] = daily
-                            distributed_dates.add(d)
-                base[rain_col] = rain_series
-                base["Accumulated"] = base.index.isin(distributed_dates)
-                base = base.reset_index()
-                base["Year"]  = base["Date"].dt.year
-                base["Month"] = base["Date"].dt.month
-        else:
-            base["Accumulated"] = False
+    # Annual summary
+    annual = (
+        base.groupby("Year")
+        .agg(
+            Accumulated_Readings=("Accumulated", "sum"),
+            Missing_Days=(rain_col, lambda x: x.isna().sum()),
+            Annual_Rainfall_mm=(rain_col, "sum"),
+        )
+        .reset_index()
+    )
+    annual["Annual_Rainfall_mm"] = annual["Annual_Rainfall_mm"].round(1)
+    annual["Accumulated_Readings"] = annual["Accumulated_Readings"].astype(int)
 
-        # Annual summary
-        annual = (
-            base.groupby("Year")
-            .agg(
-                Accumulated_Readings=("Accumulated", "sum"),
-                Missing_Days=(rain_col, lambda x: x.isna().sum()),
-                Annual_Rainfall_mm=(rain_col, "sum"),
-            )
+    if period_col and not distribute:
+        covered = (
+            base[base[period_col] > 1]
+            .groupby("Year")[period_col]
+            .apply(lambda x: int((x - 1).sum()))
             .reset_index()
         )
-        annual["Annual_Rainfall_mm"] = annual["Annual_Rainfall_mm"].round(1)
-        annual["Accumulated_Readings"] = annual["Accumulated_Readings"].astype(int)
+        covered.columns = ["Year", "Covered_Days"]
+        annual = annual.merge(covered, on="Year", how="left")
+        annual["Covered_Days"] = annual["Covered_Days"].fillna(0).astype(int)
+        annual["Missing_Days"] = (annual["Missing_Days"] - annual["Covered_Days"]).clip(lower=0)
+        annual.drop(columns=["Covered_Days"], inplace=True)
 
-        # When not distributing, preceding days of accumulated readings are NaN
-        # but are covered by the accumulation — subtract them from missing days
-        if period_col and not distribute:
-            covered = (
-                base[base[period_col] > 1]
-                .groupby("Year")[period_col]
-                .apply(lambda x: int((x - 1).sum()))
-                .reset_index()
-            )
-            covered.columns = ["Year", "Covered_Days"]
-            annual = annual.merge(covered, on="Year", how="left")
-            annual["Covered_Days"] = annual["Covered_Days"].fillna(0).astype(int)
-            annual["Missing_Days"] = (annual["Missing_Days"] - annual["Covered_Days"]).clip(lower=0)
-            annual.drop(columns=["Covered_Days"], inplace=True)
+    month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
+                   7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
+    monthly = base.groupby(["Year", "Month"])[rain_col].sum().reset_index()
+    pivot = monthly.pivot(index="Year", columns="Month", values=rain_col)
+    pivot.rename(columns=month_names, inplace=True)
+    pivot = pivot.reindex(columns=list(month_names.values())).round(1)
 
-        monthly = base.groupby(["Year", "Month"])[rain_col].sum().reset_index()
-        pivot = monthly.pivot(index="Year", columns="Month", values=rain_col)
-        month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
-                       7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
-        pivot.rename(columns=month_names, inplace=True)
-        pivot = pivot.reindex(columns=list(month_names.values())).round(1)
+    return base, annual, pivot
 
-    # Store in session state so sidebar download buttons survive reruns
-    st.session_state["df"]       = df
-    st.session_state["info"]     = info
-    st.session_state["base"]     = base
-    st.session_state["annual"]   = annual
-    st.session_state["pivot"]    = pivot
-    st.session_state["rain_col"] = rain_col
-    st.session_state["station_id"] = station_input.zfill(6)
-    st.session_state["csv_lat"] = csv_lat
-    st.session_state["csv_lon"] = csv_lon
 
 # Render from session state (persists after search)
 if "df" in st.session_state:
     df       = st.session_state["df"]
     info     = st.session_state["info"]
-    base     = st.session_state["base"]
-    annual   = st.session_state["annual"]
-    pivot    = st.session_state["pivot"]
     rain_col = st.session_state["rain_col"]
     stn_id   = st.session_state["station_id"]
     csv_lat  = st.session_state.get("csv_lat")
     csv_lon  = st.session_state.get("csv_lon")
+
+    # Recompute base/annual/pivot live based on distribute toggle
+    if rain_col:
+        base, annual, pivot = build_base(df, rain_col, distribute)
+    else:
+        base = annual = pivot = None
 
     # ── Sidebar downloads ─────────────────────────────────────────────────────
     with st.sidebar:
@@ -380,14 +376,14 @@ if "df" in st.session_state:
     st.success(f"Loaded {len(df):,} rows")
 
     st.subheader("Preview")
-    tab_raw, tab_dist = st.tabs(["Raw Data", "Distributed Data"])
-    with tab_raw:
-        st.dataframe(df, use_container_width=True)
-    with tab_dist:
-        if base is not None:
+    if distribute and base is not None:
+        tab_raw, tab_dist = st.tabs(["Raw Data", "Distributed Data"])
+        with tab_raw:
+            st.dataframe(df, use_container_width=True)
+        with tab_dist:
             st.dataframe(base, use_container_width=True)
-        else:
-            st.info("No distributed data available.")
+    else:
+        st.dataframe(df, use_container_width=True)
 
     if rain_col:
         st.subheader("Daily Rainfall Chart")
