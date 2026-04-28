@@ -375,9 +375,9 @@ if "df" in st.session_state:
                 if inc_pivot and pivot is not None:
                     pivot.to_excel(writer, sheet_name="Monthly Pivot")
                 if inc_miss_pivot and miss_pivot_before is not None:
-                    miss_pivot_before.to_excel(writer, sheet_name="Missing Days (Before Distributing)")
+                    miss_pivot_before.to_excel(writer, sheet_name="Missing Days (Before)")
                     if distribute and miss_pivot_after is not None:
-                        miss_pivot_after.to_excel(writer, sheet_name="Missing Days (After Distributing)")
+                        miss_pivot_after.to_excel(writer, sheet_name="Missing Days (After)")
             xlsx_buf.seek(0)
             st.download_button(
                 label="Download XLSX",
