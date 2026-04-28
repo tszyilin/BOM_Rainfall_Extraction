@@ -48,6 +48,7 @@ with st.sidebar:
 
     st.markdown("**XLSX sheets to include:**")
     inc_raw    = st.checkbox("Daily Rainfall (raw)", value=True)
+    inc_dist   = st.checkbox("Daily Rainfall (distributed)", value=False)
     inc_annual = st.checkbox("Annual Summary", value=True)
     inc_pivot  = st.checkbox("Monthly Pivot", value=True)
 
@@ -259,7 +260,7 @@ def build_base(df, rain_col, distribute):
         .groupby("Year")[rain_col]
         .apply(lambda x: x.isna().sum())
         .reset_index()
-        .rename(columns={rain_col: "Missing_Days_Before"})
+        .rename(columns={rain_col: "Before Dis"})
     )
 
     # Annual summary
@@ -280,12 +281,12 @@ def build_base(df, rain_col, distribute):
             base.groupby("Year")[rain_col]
             .apply(lambda x: x.isna().sum())
             .reset_index()
-            .rename(columns={rain_col: "Missing_Days_After"})
+            .rename(columns={rain_col: "After Dis"})
         )
         annual = annual.merge(raw_missing, on="Year", how="left")
         annual = annual.merge(after_missing, on="Year", how="left")
         annual = annual[["Year", "Accumulated_Readings",
-                          "Missing_Days_Before", "Missing_Days_After", "Annual_Rainfall_mm"]]
+                          "Before Dis", "After Dis", "Annual_Rainfall_mm"]]
     else:
         # Without distribution: subtract covered days from raw NaN count
         if period_col:
@@ -344,11 +345,14 @@ if "df" in st.session_state:
                 mime="text/csv",
                 use_container_width=True,
             )
-        if rain_col and (inc_raw or inc_annual or inc_pivot):
+        if rain_col and (inc_raw or inc_dist or inc_annual or inc_pivot):
             xlsx_buf = io.BytesIO()
             with pd.ExcelWriter(xlsx_buf, engine="xlsxwriter") as writer:
                 if inc_raw:
                     df.to_excel(writer, sheet_name="Daily Rainfall", index=False)
+                if inc_dist and base is not None:
+                    dist_base, _, _ = build_base(df, rain_col, distribute=True)
+                    dist_base.to_excel(writer, sheet_name="Daily Rainfall (Dist)", index=False)
                 if inc_annual and annual is not None:
                     annual.to_excel(writer, sheet_name="Annual Summary", index=False)
                 if inc_pivot and pivot is not None:
