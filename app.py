@@ -228,7 +228,9 @@ if search:
                 # Distribute accumulated readings across preceding days
                 base = base.set_index("Date").sort_index()
                 rain_series = base[rain_col].copy()
-                for date, row in base[acc_mask].iterrows():
+                # recompute mask against new index
+                acc_mask_idx = base[period_col] > 1
+                for date, row in base[acc_mask_idx].iterrows():
                     p = int(row[period_col])
                     r = row[rain_col]
                     if pd.isna(r):
