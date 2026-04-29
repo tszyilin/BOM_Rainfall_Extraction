@@ -404,16 +404,16 @@ if "df" in st.session_state:
 
     with col_info:
         st.markdown(f"""
-<div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:10px;padding:20px 28px;height:100%">
-  <div style="font-size:1.4em;font-weight:700;margin-bottom:4px">{info['name']} &nbsp; {badge}</div>
-  <div style="color:#555;font-size:0.95em;margin-bottom:14px">Station {info['number']}</div>
+<div style="background:var(--secondary-background-color);border:1px solid var(--border-color, #dee2e6);border-radius:10px;padding:20px 28px;height:100%">
+  <div style="font-size:1.4em;font-weight:700;margin-bottom:4px;color:var(--text-color)">{info['name']} &nbsp; {badge}</div>
+  <div style="color:var(--text-color);opacity:0.6;font-size:0.95em;margin-bottom:14px">Station {info['number']}</div>
   <div style="display:flex;gap:32px;flex-wrap:wrap;font-size:0.95em">
-    <div><span style="color:#888">Latitude</span><br><b>{info['lat']}</b></div>
-    <div><span style="color:#888">Longitude</span><br><b>{info['lon']}</b></div>
-    <div><span style="color:#888">Elevation</span><br><b>{info['elevation']} m</b></div>
-    <div><span style="color:#888">Opened</span><br><b>{info['opened']}</b></div>
-    <div><span style="color:#888">Status</span><br><b>{info['now']}</b></div>
-    <div><span style="color:#888">Data Range</span><br><b>{start_date} – {end_date}</b></div>
+    <div><span style="color:var(--text-color);opacity:0.6">Latitude</span><br><b style="color:var(--text-color)">{info['lat']}</b></div>
+    <div><span style="color:var(--text-color);opacity:0.6">Longitude</span><br><b style="color:var(--text-color)">{info['lon']}</b></div>
+    <div><span style="color:var(--text-color);opacity:0.6">Elevation</span><br><b style="color:var(--text-color)">{info['elevation']} m</b></div>
+    <div><span style="color:var(--text-color);opacity:0.6">Opened</span><br><b style="color:var(--text-color)">{info['opened']}</b></div>
+    <div><span style="color:var(--text-color);opacity:0.6">Status</span><br><b style="color:var(--text-color)">{info['now']}</b></div>
+    <div><span style="color:var(--text-color);opacity:0.6">Data Range</span><br><b style="color:var(--text-color)">{start_date} – {end_date}</b></div>
   </div>
 </div>
 """, unsafe_allow_html=True)
