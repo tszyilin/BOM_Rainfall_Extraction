@@ -40,6 +40,7 @@ with st.sidebar:
     debug_mode = st.checkbox("Show debug info")
     distribute = st.toggle("Distribute accumulated rainfall evenly", value=True,
                            help="Splits multi-day accumulated readings across preceding days so missing days aren't overestimated")
+    show_monthly_bar = st.toggle("Show monthly rainfall bar chart", value=False)
 
     st.divider()
     st.subheader("Export")
@@ -450,6 +451,78 @@ if "df" in st.session_state:
         )
         fig.update_xaxes(tickformat="%d %b %Y")
         st.plotly_chart(fig, use_container_width=True)
+
+        if show_monthly_bar:
+            st.subheader("Monthly Rainfall Bar Chart")
+            all_years = sorted(base["Year"].dropna().unique().astype(int).tolist())
+            if len(all_years) >= 2:
+                yr_min, yr_max = st.select_slider(
+                    "Select year range",
+                    options=all_years,
+                    value=(all_years[0], all_years[-1]),
+                )
+            else:
+                yr_min = yr_max = all_years[0] if all_years else None
+
+            if yr_min is not None:
+                month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
+                               7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
+                bar_df = base[(base["Year"] >= yr_min) & (base["Year"] <= yr_max)].copy()
+
+                # Monthly rainfall total
+                monthly_rain = (bar_df.groupby("Month")[rain_col]
+                                .sum().reset_index()
+                                .rename(columns={rain_col: "Rainfall_mm"}))
+                monthly_rain["Rainfall_mm"] = monthly_rain["Rainfall_mm"].round(1)
+
+                # Monthly missing days (raw)
+                raw_base = df[["Year", "Month", rain_col]].copy()
+                raw_base[rain_col] = pd.to_numeric(raw_base[rain_col], errors="coerce")
+                raw_base = raw_base[(raw_base["Year"] >= yr_min) & (raw_base["Year"] <= yr_max)]
+                miss_raw = (raw_base.groupby("Month")[rain_col]
+                            .apply(lambda x: int(x.isna().sum())).reset_index()
+                            .rename(columns={rain_col: "Missing_Raw"}))
+
+                # Monthly missing days (after distribute)
+                miss_dist = (bar_df.groupby("Month")[rain_col]
+                             .apply(lambda x: int(x.isna().sum())).reset_index()
+                             .rename(columns={rain_col: "Missing_Dist"}))
+
+                bar_df2 = monthly_rain.merge(miss_raw, on="Month", how="left")
+                bar_df2 = bar_df2.merge(miss_dist, on="Month", how="left")
+                bar_df2["Month_Name"] = bar_df2["Month"].map(month_names)
+                bar_df2["Month_Name"] = pd.Categorical(
+                    bar_df2["Month_Name"], categories=list(month_names.values()), ordered=True)
+                bar_df2 = bar_df2.sort_values("Month_Name")
+
+                if distribute:
+                    bar_df2["hover"] = bar_df2.apply(
+                        lambda r: (f"<b>{r['Month_Name']}</b><br>"
+                                   f"Rainfall: {r['Rainfall_mm']} mm<br>"
+                                   f"Missing days (raw): {int(r['Missing_Raw'])}<br>"
+                                   f"Missing days (after dist): {int(r['Missing_Dist'])}"),
+                        axis=1)
+                else:
+                    bar_df2["hover"] = bar_df2.apply(
+                        lambda r: (f"<b>{r['Month_Name']}</b><br>"
+                                   f"Rainfall: {r['Rainfall_mm']} mm<br>"
+                                   f"Missing days: {int(r['Missing_Raw'])}"),
+                        axis=1)
+
+                fig_bar = px.bar(
+                    bar_df2, x="Month_Name", y="Rainfall_mm",
+                    labels={"Month_Name": "Month", "Rainfall_mm": "Rainfall (mm)"},
+                    custom_data=["hover"],
+                )
+                fig_bar.update_traces(
+                    hovertemplate="%{customdata[0]}<extra></extra>"
+                )
+                fig_bar.update_layout(
+                    xaxis_title="Month",
+                    yaxis_title="Rainfall (mm)",
+                    bargap=0.2,
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
 
         st.subheader("Annual Summary")
         st.dataframe(annual, use_container_width=True, hide_index=True)
