@@ -256,15 +256,11 @@ def build_base(df, rain_col, distribute):
         period_col = None
         base["Accumulated"] = False
 
-    # Raw missing days (before any distribution) — NaN count from raw base
-    raw_missing = (
-        df[["Year", rain_col]].copy()
-        .assign(**{rain_col: pd.to_numeric(df[rain_col], errors="coerce")})
-        .groupby("Year")[rain_col]
-        .apply(lambda x: x.isna().sum())
-        .reset_index()
-        .rename(columns={rain_col: "Before Distributing"})
-    )
+    # Raw missing days (before any distribution) — NaN count from raw df
+    _raw = df[["Year", rain_col]].copy()
+    _raw[rain_col] = pd.to_numeric(_raw[rain_col], errors="coerce")
+    raw_missing = _raw.groupby("Year")[rain_col].apply(lambda x: int(x.isna().sum())).reset_index()
+    raw_missing.columns = ["Year", "Before Distributing"]
 
     # Annual summary
     annual = (
@@ -280,12 +276,9 @@ def build_base(df, rain_col, distribute):
 
     if distribute:
         # After distribution: NaN count in distributed base
-        after_missing = (
-            base.groupby("Year")[rain_col]
-            .apply(lambda x: x.isna().sum())
-            .reset_index()
-            .rename(columns={rain_col: "After Distributing"})
-        )
+        _after = base.groupby("Year")[rain_col].apply(lambda x: int(x.isna().sum())).reset_index()
+        _after.columns = ["Year", "After Distributing"]
+        after_missing = _after
         annual = annual.merge(raw_missing, on="Year", how="left")
         annual = annual.merge(after_missing, on="Year", how="left")
         annual = annual[["Year", "Before Distributing", "After Distributing", "Annual_Rainfall_mm"]]
@@ -320,16 +313,16 @@ def build_base(df, rain_col, distribute):
     # Missing days pivot (before distribution — from raw df)
     raw_df_num = df[["Year", "Month", rain_col]].copy()
     raw_df_num[rain_col] = pd.to_numeric(raw_df_num[rain_col], errors="coerce")
-    miss_before_monthly = (raw_df_num.groupby(["Year", "Month"])[rain_col]
-                           .apply(lambda x: x.isna().sum()).reset_index())
-    miss_pivot_before = miss_before_monthly.pivot(index="Year", columns="Month", values=rain_col)
+    _mb = raw_df_num.groupby(["Year", "Month"])[rain_col].apply(lambda x: int(x.isna().sum())).reset_index()
+    _mb.columns = ["Year", "Month", "Missing"]
+    miss_pivot_before = _mb.pivot(index="Year", columns="Month", values="Missing")
     miss_pivot_before.rename(columns=month_names, inplace=True)
     miss_pivot_before = miss_pivot_before.reindex(columns=list(month_names.values()))
 
     # Missing days pivot (after distribution — from distributed base)
-    miss_after_monthly = (base.groupby(["Year", "Month"])[rain_col]
-                          .apply(lambda x: x.isna().sum()).reset_index())
-    miss_pivot_after = miss_after_monthly.pivot(index="Year", columns="Month", values=rain_col)
+    _ma = base.groupby(["Year", "Month"])[rain_col].apply(lambda x: int(x.isna().sum())).reset_index()
+    _ma.columns = ["Year", "Month", "Missing"]
+    miss_pivot_after = _ma.pivot(index="Year", columns="Month", values="Missing")
     miss_pivot_after.rename(columns=month_names, inplace=True)
     miss_pivot_after = miss_pivot_after.reindex(columns=list(month_names.values()))
 
