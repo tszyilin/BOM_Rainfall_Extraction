@@ -675,16 +675,48 @@ if "df" in st.session_state:
 
         st.subheader("Annual Summary")
         st.dataframe(annual, use_container_width=True, hide_index=True)
+        st.download_button(
+            label="Download Annual Summary",
+            data=annual.to_csv(index=False).encode(),
+            file_name=f"{stn_id}_annual_summary.csv",
+            mime="text/csv",
+        )
 
         st.subheader("Monthly Rainfall Pivot (mm)")
         st.dataframe(pivot, use_container_width=True)
+        st.download_button(
+            label="Download Monthly Rainfall Pivot",
+            data=pivot.to_csv().encode(),
+            file_name=f"{stn_id}_monthly_rainfall_pivot.csv",
+            mime="text/csv",
+        )
 
         st.subheader("Missing Days Pivot")
         if distribute and miss_pivot_before is not None and miss_pivot_after is not None:
             tab_before, tab_after = st.tabs(["Before Distributing", "After Distributing"])
             with tab_before:
                 st.dataframe(miss_pivot_before, use_container_width=True)
+                st.download_button(
+                    label="Download Missing Days (Before Distributing)",
+                    data=miss_pivot_before.to_csv().encode(),
+                    file_name=f"{stn_id}_missing_days_before_distributing.csv",
+                    mime="text/csv",
+                    key="dl_miss_before",
+                )
             with tab_after:
                 st.dataframe(miss_pivot_after, use_container_width=True)
+                st.download_button(
+                    label="Download Missing Days (After Distributing)",
+                    data=miss_pivot_after.to_csv().encode(),
+                    file_name=f"{stn_id}_missing_days_after_distributing.csv",
+                    mime="text/csv",
+                    key="dl_miss_after",
+                )
         elif miss_pivot_before is not None:
             st.dataframe(miss_pivot_before, use_container_width=True)
+            st.download_button(
+                label="Download Missing Days Pivot",
+                data=miss_pivot_before.to_csv().encode(),
+                file_name=f"{stn_id}_missing_days_pivot.csv",
+                mime="text/csv",
+            )
