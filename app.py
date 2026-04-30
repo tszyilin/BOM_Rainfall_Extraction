@@ -652,9 +652,14 @@ if "df" in st.session_state:
                 ))
 
                 # Selected reference line
-                fig_bar.add_hline(y=ref_val, line_dash="dash", line_color="tomato",
+                fig_bar.add_hline(y=ref_val, line_dash="dash", line_color="tomato", line_width=2,
                                   annotation_text=f"{ref_stat}: {ref_val} mm",
-                                  annotation_position="top right")
+                                  annotation_position="top left",
+                                  annotation_font=dict(size=15, color="tomato"),
+                                  annotation_bgcolor="rgba(255,255,255,0.7)",
+                                  annotation_bordercolor="tomato",
+                                  annotation_borderwidth=1,
+                                  annotation_borderpad=5)
 
                 fig_bar.update_layout(
                     xaxis_title="Year",
