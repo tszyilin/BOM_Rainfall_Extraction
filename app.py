@@ -260,7 +260,7 @@ def build_base(df, rain_col, distribute):
     _raw = df[["Year", rain_col]].copy()
     _raw[rain_col] = pd.to_numeric(_raw[rain_col], errors="coerce")
     raw_missing = _raw.groupby("Year")[rain_col].apply(lambda x: int(x.isna().sum())).reset_index()
-    raw_missing.columns = ["Year", "Before Distributing"]
+    raw_missing.columns = ["Year", "Missing Days (Before)"]
 
     # Annual summary
     annual = (
@@ -277,11 +277,11 @@ def build_base(df, rain_col, distribute):
     if distribute:
         # After distribution: NaN count in distributed base
         _after = base.groupby("Year")[rain_col].apply(lambda x: int(x.isna().sum())).reset_index()
-        _after.columns = ["Year", "After Distributing"]
+        _after.columns = ["Year", "Missing Days (After)"]
         after_missing = _after
         annual = annual.merge(raw_missing, on="Year", how="left")
         annual = annual.merge(after_missing, on="Year", how="left")
-        annual = annual[["Year", "Before Distributing", "After Distributing", "Annual_Rainfall_mm"]]
+        annual = annual[["Year", "Missing Days (Before)", "Missing Days (After)", "Annual_Rainfall_mm"]]
     else:
         # Without distribution: subtract covered days from raw NaN count
         if period_col:
@@ -295,11 +295,11 @@ def build_base(df, rain_col, distribute):
             raw_missing = raw_missing.merge(covered, on="Year", how="left")
             raw_missing["Covered_Days"] = raw_missing["Covered_Days"].fillna(0).astype(int)
             raw_missing["Missing_Days"] = (
-                raw_missing["Before Distributing"] - raw_missing["Covered_Days"]
+                raw_missing["Missing Days (Before)"] - raw_missing["Covered_Days"]
             ).clip(lower=0)
             raw_missing = raw_missing[["Year", "Missing_Days"]]
         else:
-            raw_missing = raw_missing.rename(columns={"Before Distributing": "Missing_Days"})
+            raw_missing = raw_missing.rename(columns={"Missing Days (Before)": "Missing_Days"})
         annual = annual.merge(raw_missing, on="Year", how="left")
         annual = annual[["Year", "Missing_Days", "Annual_Rainfall_mm"]]
 
@@ -691,11 +691,11 @@ if "df" in st.session_state:
 
         st.subheader("Missing Days Pivot")
         if distribute and miss_pivot_before is not None and miss_pivot_after is not None:
-            tab_before, tab_after = st.tabs(["Before Distributing", "After Distributing"])
+            tab_before, tab_after = st.tabs(["Missing Days (Before)", "Missing Days (After)"])
             with tab_before:
                 st.dataframe(miss_pivot_before, use_container_width=True)
                 st.download_button(
-                    label="Download Missing Days (Before Distributing)",
+                    label="Download Missing Days (Before)",
                     data=miss_pivot_before.to_csv().encode(),
                     file_name=f"{stn_id}_missing_days_before_distributing.csv",
                     mime="text/csv",
@@ -704,7 +704,7 @@ if "df" in st.session_state:
             with tab_after:
                 st.dataframe(miss_pivot_after, use_container_width=True)
                 st.download_button(
-                    label="Download Missing Days (After Distributing)",
+                    label="Download Missing Days (After)",
                     data=miss_pivot_after.to_csv().encode(),
                     file_name=f"{stn_id}_missing_days_after_distributing.csv",
                     mime="text/csv",
