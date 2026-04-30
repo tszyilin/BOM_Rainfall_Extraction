@@ -473,13 +473,26 @@ if "df" in st.session_state:
                                         index=len(all_years) - 1, key="bar_sel_year")
                 bar_base = base[base["Year"] == sel_year].copy()
 
-                # Monthly totals for that year
+                # Monthly totals for selected year
                 monthly_tot = (bar_base.groupby("Month")[rain_col]
                                .sum().reset_index()
                                .rename(columns={rain_col: "Rainfall_mm"}))
                 monthly_tot["Rainfall_mm"] = monthly_tot["Rainfall_mm"].round(1)
 
-                # Missing days (raw) for that year
+                # Mean & Median across ALL years per month
+                all_yr_monthly = (base.groupby(["Year", "Month"])[rain_col]
+                                  .sum().reset_index())
+                mean_med = (all_yr_monthly.groupby("Month")["Rainfall_mm" if "Rainfall_mm" in all_yr_monthly.columns else rain_col]
+                            .agg(Mean="mean", Median="median").reset_index())
+                # fix column name after groupby sum
+                all_yr_monthly2 = (base.groupby(["Year", "Month"])[rain_col]
+                                   .sum().rename("Rainfall_mm").reset_index())
+                mean_med = (all_yr_monthly2.groupby("Month")["Rainfall_mm"]
+                            .agg(Mean="mean", Median="median").reset_index())
+                mean_med["Mean"]   = mean_med["Mean"].round(1)
+                mean_med["Median"] = mean_med["Median"].round(1)
+
+                # Missing days (raw) for selected year
                 raw_yr = df[["Year", "Month", rain_col]].copy()
                 raw_yr[rain_col] = pd.to_numeric(raw_yr[rain_col], errors="coerce")
                 raw_yr = raw_yr[raw_yr["Year"] == sel_year]
@@ -487,12 +500,13 @@ if "df" in st.session_state:
                             .apply(lambda x: int(x.isna().sum())).reset_index()
                             .rename(columns={rain_col: "Missing_Raw"}))
 
-                # Missing days (after distribute) for that year
+                # Missing days (after distribute) for selected year
                 miss_dist = (bar_base.groupby("Month")[rain_col]
                              .apply(lambda x: int(x.isna().sum())).reset_index()
                              .rename(columns={rain_col: "Missing_Dist"}))
 
-                agg = monthly_tot.merge(miss_raw, on="Month", how="left")
+                agg = monthly_tot.merge(mean_med, on="Month", how="left")
+                agg = agg.merge(miss_raw, on="Month", how="left")
                 agg = agg.merge(miss_dist, on="Month", how="left")
                 agg["Month_Name"] = pd.Categorical(
                     agg["Month"].map(month_names),
@@ -504,21 +518,37 @@ if "df" in st.session_state:
                 else:
                     miss_label = "Missing days: %{customdata[0]}"
 
-                fig_bar = go.Figure(go.Bar(
+                fig_bar = go.Figure()
+                fig_bar.add_trace(go.Bar(
+                    name=str(sel_year),
                     x=agg["Month_Name"].tolist(),
                     y=agg["Rainfall_mm"].tolist(),
                     customdata=agg[["Missing_Raw", "Missing_Dist"]].values,
                     hovertemplate=(
-                        "<b>%{x}</b><br>Rainfall: %{y} mm<br>" +
+                        f"<b>%{{x}} {sel_year}</b><br>Rainfall: %{{y}} mm<br>" +
                         miss_label + "<extra></extra>"
                     ),
                     text=agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
                     textposition="outside",
                 ))
+                fig_bar.add_trace(go.Bar(
+                    name="Mean (all years)",
+                    x=agg["Month_Name"].tolist(),
+                    y=agg["Mean"].tolist(),
+                    hovertemplate="<b>%{x} — Mean</b><br>Rainfall: %{y} mm<extra></extra>",
+                ))
+                fig_bar.add_trace(go.Bar(
+                    name="Median (all years)",
+                    x=agg["Month_Name"].tolist(),
+                    y=agg["Median"].tolist(),
+                    hovertemplate="<b>%{x} — Median</b><br>Rainfall: %{y} mm<extra></extra>",
+                ))
                 fig_bar.update_layout(
-                    xaxis_title="Month", yaxis_title="Rainfall (mm)", bargap=0.2)
+                    barmode="group",
+                    xaxis_title="Month", yaxis_title="Rainfall (mm)",
+                    bargap=0.15, bargroupgap=0.05)
                 st.plotly_chart(fig_bar, use_container_width=True)
-                st.caption("⚠ number above bar = missing days (raw) for that month")
+                st.caption("⚠ number above bar = missing days (raw) for that month in the selected year")
 
             else:
                 st.subheader("Monthly Rainfall Across All Years — Mean & Median")
