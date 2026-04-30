@@ -551,13 +551,22 @@ if "df" in st.session_state:
                 st.caption("⚠ number above bar = missing days (raw) for that month in the selected year")
 
             else:
-                st.subheader("Monthly Rainfall Across All Years — Mean & Median")
-                sel_month = st.selectbox(
-                    "Select month",
-                    options=list(month_names.keys()),
-                    format_func=lambda m: month_names[m],
-                    key="bar_sel_month",
-                )
+                st.subheader("Monthly Rainfall Across All Years")
+                col_m1, col_m2 = st.columns(2)
+                with col_m1:
+                    sel_month = st.selectbox(
+                        "Select month",
+                        options=list(month_names.keys()),
+                        format_func=lambda m: month_names[m],
+                        key="bar_sel_month",
+                    )
+                with col_m2:
+                    ref_stat = st.selectbox(
+                        "Reference line",
+                        options=["Mean", "Median"],
+                        index=0,
+                        key="bar_ref_stat",
+                    )
                 bar_base = base[base["Month"] == sel_month].copy()
 
                 # Annual total for that month per year
@@ -584,6 +593,7 @@ if "df" in st.session_state:
 
                 mean_val   = round(yr_agg["Rainfall_mm"].mean(), 1)
                 median_val = round(yr_agg["Rainfall_mm"].median(), 1)
+                ref_val    = mean_val if ref_stat == "Mean" else median_val
 
                 if distribute:
                     miss_label = "Missing (raw): %{customdata[0]}<br>Missing (after dist): %{customdata[1]}"
@@ -607,15 +617,10 @@ if "df" in st.session_state:
                     marker_color="steelblue",
                 ))
 
-                # Mean line
-                fig_bar.add_hline(y=mean_val, line_dash="dash", line_color="tomato",
-                                  annotation_text=f"Mean: {mean_val} mm",
+                # Selected reference line
+                fig_bar.add_hline(y=ref_val, line_dash="dash", line_color="tomato",
+                                  annotation_text=f"{ref_stat}: {ref_val} mm",
                                   annotation_position="top right")
-
-                # Median line
-                fig_bar.add_hline(y=median_val, line_dash="dot", line_color="mediumseagreen",
-                                  annotation_text=f"Median: {median_val} mm",
-                                  annotation_position="bottom right")
 
                 fig_bar.update_layout(
                     xaxis_title="Year",
