@@ -476,7 +476,7 @@ if "df" in st.session_state:
                 with col_y2:
                     show_bars = st.multiselect(
                         "Show bars",
-                        options=["Selected year", "Mean (all years)", "Median (all years)"],
+                        options=["Selected year", "Median (selected year)", "Mean (all years)", "Median (all years)"],
                         default=["Selected year"],
                         key="bar_show_bars",
                     )
@@ -514,7 +514,19 @@ if "df" in st.session_state:
                              .apply(lambda x: int(x.isna().sum())).reset_index()
                              .rename(columns={rain_col: "Missing_Dist"}))
 
+                # Median of monthly totals across all years per month (for selected year comparison)
+                median_yr = (all_yr_monthly2.groupby("Month")["Rainfall_mm"]
+                             .median().round(1).reset_index()
+                             .rename(columns={"Rainfall_mm": "Median_yr"}))
+
+                # Median of monthly totals for selected year only (one value per month = the total itself,
+                # so we use median of daily values within each month for the selected year)
+                sel_yr_daily_med = (bar_base.groupby("Month")[rain_col]
+                                    .median().round(1).reset_index()
+                                    .rename(columns={rain_col: "Median_sel"}))
+
                 agg = monthly_tot.merge(mean_med, on="Month", how="left")
+                agg = agg.merge(sel_yr_daily_med, on="Month", how="left")
                 agg = agg.merge(miss_raw, on="Month", how="left")
                 agg = agg.merge(miss_dist, on="Month", how="left")
                 agg["Month_Name"] = pd.Categorical(
@@ -540,6 +552,13 @@ if "df" in st.session_state:
                         ),
                         text=agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
                         textposition="outside",
+                    ))
+                if "Median (selected year)" in show_bars:
+                    fig_bar.add_trace(go.Bar(
+                        name=f"Median daily ({sel_year})",
+                        x=agg["Month_Name"].tolist(),
+                        y=agg["Median_sel"].tolist(),
+                        hovertemplate=f"<b>%{{x}} — Median daily {sel_year}</b><br>Rainfall: %{{y}} mm<extra></extra>",
                     ))
                 if "Mean (all years)" in show_bars:
                     fig_bar.add_trace(go.Bar(
