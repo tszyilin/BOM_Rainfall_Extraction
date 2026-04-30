@@ -454,75 +454,101 @@ if "df" in st.session_state:
 
         if show_monthly_bar:
             st.subheader("Monthly Rainfall Bar Chart")
+            month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
+                           7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
             all_years = sorted(base["Year"].dropna().unique().astype(int).tolist())
-            if len(all_years) >= 2:
-                yr_min, yr_max = st.select_slider(
-                    "Select year range",
-                    options=all_years,
-                    value=(all_years[0], all_years[-1]),
-                )
+
+            col_yr1, col_yr2 = st.columns(2)
+            with col_yr1:
+                yr_from = st.selectbox("From year", options=all_years, index=0, key="bar_yr_from")
+            with col_yr2:
+                default_to = len(all_years) - 1
+                yr_to = st.selectbox("To year", options=all_years, index=default_to, key="bar_yr_to")
+
+            if yr_from > yr_to:
+                st.warning("'From year' must be ≤ 'To year'.")
             else:
-                yr_min = yr_max = all_years[0] if all_years else None
+                bar_base = base[(base["Year"] >= yr_from) & (base["Year"] <= yr_to)].copy()
 
-            if yr_min is not None:
-                month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
-                               7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
-                bar_df = base[(base["Year"] >= yr_min) & (base["Year"] <= yr_max)].copy()
+                # Per-year monthly totals (for mean & median across years)
+                yr_monthly = (bar_base.groupby(["Year", "Month"])[rain_col]
+                              .sum().reset_index()
+                              .rename(columns={rain_col: "Rainfall_mm"}))
 
-                # Monthly rainfall total
-                monthly_rain = (bar_df.groupby("Month")[rain_col]
-                                .sum().reset_index()
-                                .rename(columns={rain_col: "Rainfall_mm"}))
-                monthly_rain["Rainfall_mm"] = monthly_rain["Rainfall_mm"].round(1)
+                agg = (yr_monthly.groupby("Month")["Rainfall_mm"]
+                       .agg(Mean="mean", Median="median")
+                       .reset_index())
+                agg["Mean"]   = agg["Mean"].round(1)
+                agg["Median"] = agg["Median"].round(1)
 
-                # Monthly missing days (raw)
-                raw_base = df[["Year", "Month", rain_col]].copy()
-                raw_base[rain_col] = pd.to_numeric(raw_base[rain_col], errors="coerce")
-                raw_base = raw_base[(raw_base["Year"] >= yr_min) & (raw_base["Year"] <= yr_max)]
-                miss_raw = (raw_base.groupby("Month")[rain_col]
+                # Missing days (raw)
+                raw_base2 = df[["Year", "Month", rain_col]].copy()
+                raw_base2[rain_col] = pd.to_numeric(raw_base2[rain_col], errors="coerce")
+                raw_base2 = raw_base2[(raw_base2["Year"] >= yr_from) & (raw_base2["Year"] <= yr_to)]
+                miss_raw = (raw_base2.groupby("Month")[rain_col]
                             .apply(lambda x: int(x.isna().sum())).reset_index()
                             .rename(columns={rain_col: "Missing_Raw"}))
 
-                # Monthly missing days (after distribute)
-                miss_dist = (bar_df.groupby("Month")[rain_col]
+                # Missing days (after distribute)
+                miss_dist = (bar_base.groupby("Month")[rain_col]
                              .apply(lambda x: int(x.isna().sum())).reset_index()
                              .rename(columns={rain_col: "Missing_Dist"}))
 
-                bar_df2 = monthly_rain.merge(miss_raw, on="Month", how="left")
-                bar_df2 = bar_df2.merge(miss_dist, on="Month", how="left")
-                bar_df2["Month_Name"] = bar_df2["Month"].map(month_names)
-                bar_df2["Month_Name"] = pd.Categorical(
-                    bar_df2["Month_Name"], categories=list(month_names.values()), ordered=True)
-                bar_df2 = bar_df2.sort_values("Month_Name")
+                agg = agg.merge(miss_raw, on="Month", how="left")
+                agg = agg.merge(miss_dist, on="Month", how="left")
+                agg["Month_Name"] = pd.Categorical(
+                    agg["Month"].map(month_names),
+                    categories=list(month_names.values()), ordered=True)
+                agg = agg.sort_values("Month_Name")
+
+                # Build grouped bar: Mean + Median side by side
+                import plotly.graph_objects as go
 
                 if distribute:
-                    bar_df2["hover"] = bar_df2.apply(
-                        lambda r: (f"<b>{r['Month_Name']}</b><br>"
-                                   f"Rainfall: {r['Rainfall_mm']} mm<br>"
-                                   f"Missing days (raw): {int(r['Missing_Raw'])}<br>"
-                                   f"Missing days (after dist): {int(r['Missing_Dist'])}"),
-                        axis=1)
+                    miss_label = "Missing (raw): %{customdata[0]}<br>Missing (after dist): %{customdata[1]}"
                 else:
-                    bar_df2["hover"] = bar_df2.apply(
-                        lambda r: (f"<b>{r['Month_Name']}</b><br>"
-                                   f"Rainfall: {r['Rainfall_mm']} mm<br>"
-                                   f"Missing days: {int(r['Missing_Raw'])}"),
-                        axis=1)
+                    miss_label = "Missing days: %{customdata[0]}"
 
-                fig_bar = px.bar(
-                    bar_df2, x="Month_Name", y="Rainfall_mm",
-                    labels={"Month_Name": "Month", "Rainfall_mm": "Rainfall (mm)"},
-                    custom_data=["hover"],
-                )
-                fig_bar.update_traces(
-                    hovertemplate="%{customdata[0]}<extra></extra>"
-                )
+                fig_bar = go.Figure()
+
+                fig_bar.add_trace(go.Bar(
+                    name="Mean",
+                    x=agg["Month_Name"].tolist(),
+                    y=agg["Mean"].tolist(),
+                    customdata=agg[["Missing_Raw", "Missing_Dist"]].values,
+                    hovertemplate=(
+                        "<b>%{x} — Mean</b><br>"
+                        "Rainfall: %{y} mm<br>" +
+                        miss_label +
+                        "<extra></extra>"
+                    ),
+                    text=agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
+                    textposition="outside",
+                ))
+
+                fig_bar.add_trace(go.Bar(
+                    name="Median",
+                    x=agg["Month_Name"].tolist(),
+                    y=agg["Median"].tolist(),
+                    customdata=agg[["Missing_Raw", "Missing_Dist"]].values,
+                    hovertemplate=(
+                        "<b>%{x} — Median</b><br>"
+                        "Rainfall: %{y} mm<br>" +
+                        miss_label +
+                        "<extra></extra>"
+                    ),
+                ))
+
                 fig_bar.update_layout(
+                    barmode="group",
                     xaxis_title="Month",
                     yaxis_title="Rainfall (mm)",
-                    bargap=0.2,
+                    legend_title="Statistic",
+                    bargap=0.15,
+                    bargroupgap=0.05,
                 )
                 st.plotly_chart(fig_bar, use_container_width=True)
+                st.caption("⚠ number above Mean bar = total missing days (raw) for that month in the selected range")
 
         st.subheader("Annual Summary")
         st.dataframe(annual, use_container_width=True, hide_index=True)
