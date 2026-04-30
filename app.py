@@ -474,11 +474,16 @@ if "df" in st.session_state:
                     sel_year = st.selectbox("Select year", options=all_years,
                                             index=len(all_years) - 1, key="bar_sel_year")
                 with col_y2:
-                    show_bars = st.multiselect(
-                        "Show bars",
-                        options=["Selected year", "Median (selected year)", "Mean (all years)", "Median (all years)"],
-                        default=["Selected year"],
-                        key="bar_show_bars",
+                    st.markdown("**Show bars**")
+                    sw_sel_year   = st.toggle("Selected year",         value=True,  key="sw_sel_year")
+                    sw_med_sel    = st.toggle("Median (selected year)", value=False, key="sw_med_sel")
+                    sw_mean_all   = st.toggle("Mean (all years)",       value=False, key="sw_mean_all")
+                    sw_median_all = st.toggle("Median (all years)",     value=False, key="sw_median_all")
+                    show_bars = (
+                        (["Selected year"]          if sw_sel_year   else []) +
+                        (["Median (selected year)"] if sw_med_sel    else []) +
+                        (["Mean (all years)"]       if sw_mean_all   else []) +
+                        (["Median (all years)"]     if sw_median_all else [])
                     )
                 bar_base = base[base["Year"] == sel_year].copy()
 
