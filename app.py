@@ -20,8 +20,8 @@ HEADERS = {
     "Referer": "http://www.bom.gov.au/climate/data/",
 }
 
-st.set_page_config(layout="wide")
-st.title("BOM Daily Rainfall Downloader")
+st.set_page_config(page_title="BOM Rainfall Downloader", layout="wide")
+st.title("BOM Rainfall Downloader")
 st.caption("Data sourced from Bureau of Meteorology Climate Data Online")
 
 st.markdown("""
