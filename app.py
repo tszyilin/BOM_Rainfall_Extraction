@@ -469,8 +469,17 @@ if "df" in st.session_state:
 
             if chart_mode == "Monthly summary for a year":
                 st.subheader("Monthly Rainfall — Single Year")
-                sel_year = st.selectbox("Select year", options=all_years,
-                                        index=len(all_years) - 1, key="bar_sel_year")
+                col_y1, col_y2 = st.columns(2)
+                with col_y1:
+                    sel_year = st.selectbox("Select year", options=all_years,
+                                            index=len(all_years) - 1, key="bar_sel_year")
+                with col_y2:
+                    show_bars = st.multiselect(
+                        "Show bars",
+                        options=["Selected year", "Mean (all years)", "Median (all years)"],
+                        default=["Selected year"],
+                        key="bar_show_bars",
+                    )
                 bar_base = base[base["Year"] == sel_year].copy()
 
                 # Monthly totals for selected year
@@ -519,36 +528,42 @@ if "df" in st.session_state:
                     miss_label = "Missing days: %{customdata[0]}"
 
                 fig_bar = go.Figure()
-                fig_bar.add_trace(go.Bar(
-                    name=str(sel_year),
-                    x=agg["Month_Name"].tolist(),
-                    y=agg["Rainfall_mm"].tolist(),
-                    customdata=agg[["Missing_Raw", "Missing_Dist"]].values,
-                    hovertemplate=(
-                        f"<b>%{{x}} {sel_year}</b><br>Rainfall: %{{y}} mm<br>" +
-                        miss_label + "<extra></extra>"
-                    ),
-                    text=agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
-                    textposition="outside",
-                ))
-                fig_bar.add_trace(go.Bar(
-                    name="Mean (all years)",
-                    x=agg["Month_Name"].tolist(),
-                    y=agg["Mean"].tolist(),
-                    hovertemplate="<b>%{x} — Mean</b><br>Rainfall: %{y} mm<extra></extra>",
-                ))
-                fig_bar.add_trace(go.Bar(
-                    name="Median (all years)",
-                    x=agg["Month_Name"].tolist(),
-                    y=agg["Median"].tolist(),
-                    hovertemplate="<b>%{x} — Median</b><br>Rainfall: %{y} mm<extra></extra>",
-                ))
-                fig_bar.update_layout(
-                    barmode="group",
-                    xaxis_title="Month", yaxis_title="Rainfall (mm)",
-                    bargap=0.15, bargroupgap=0.05)
-                st.plotly_chart(fig_bar, use_container_width=True)
-                st.caption("⚠ number above bar = missing days (raw) for that month in the selected year")
+                if "Selected year" in show_bars:
+                    fig_bar.add_trace(go.Bar(
+                        name=str(sel_year),
+                        x=agg["Month_Name"].tolist(),
+                        y=agg["Rainfall_mm"].tolist(),
+                        customdata=agg[["Missing_Raw", "Missing_Dist"]].values,
+                        hovertemplate=(
+                            f"<b>%{{x}} {sel_year}</b><br>Rainfall: %{{y}} mm<br>" +
+                            miss_label + "<extra></extra>"
+                        ),
+                        text=agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
+                        textposition="outside",
+                    ))
+                if "Mean (all years)" in show_bars:
+                    fig_bar.add_trace(go.Bar(
+                        name="Mean (all years)",
+                        x=agg["Month_Name"].tolist(),
+                        y=agg["Mean"].tolist(),
+                        hovertemplate="<b>%{x} — Mean</b><br>Rainfall: %{y} mm<extra></extra>",
+                    ))
+                if "Median (all years)" in show_bars:
+                    fig_bar.add_trace(go.Bar(
+                        name="Median (all years)",
+                        x=agg["Month_Name"].tolist(),
+                        y=agg["Median"].tolist(),
+                        hovertemplate="<b>%{x} — Median</b><br>Rainfall: %{y} mm<extra></extra>",
+                    ))
+                if not show_bars:
+                    st.info("Select at least one bar to display.")
+                else:
+                    fig_bar.update_layout(
+                        barmode="group",
+                        xaxis_title="Month", yaxis_title="Rainfall (mm)",
+                        bargap=0.15, bargroupgap=0.05)
+                    st.plotly_chart(fig_bar, use_container_width=True)
+                    st.caption("⚠ number above bar = missing days (raw) for that month in the selected year")
 
             else:
                 st.subheader("Monthly Rainfall Across All Years")
