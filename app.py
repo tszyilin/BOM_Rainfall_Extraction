@@ -676,7 +676,7 @@ if "df" in st.session_state:
         st.download_button(
             label="Download Annual Summary",
             data=annual.to_csv(index=False).encode(),
-            file_name=f"{stn_id}_annual_summary.csv",
+            file_name=f"{stn_id}_Annual Summary.csv",
             mime="text/csv",
         )
 
@@ -685,7 +685,7 @@ if "df" in st.session_state:
         st.download_button(
             label="Download Monthly Rainfall Pivot",
             data=pivot.to_csv().encode(),
-            file_name=f"{stn_id}_monthly_rainfall_pivot.csv",
+            file_name=f"{stn_id}_Monthly Rainfall Pivot.csv",
             mime="text/csv",
         )
 
@@ -697,7 +697,7 @@ if "df" in st.session_state:
                 st.download_button(
                     label="Download Missing Days (Before)",
                     data=miss_pivot_before.to_csv().encode(),
-                    file_name=f"{stn_id}_missing_days_before_distributing.csv",
+                    file_name=f"{stn_id}_Missing Days (Before).csv",
                     mime="text/csv",
                     key="dl_miss_before",
                 )
@@ -706,7 +706,7 @@ if "df" in st.session_state:
                 st.download_button(
                     label="Download Missing Days (After)",
                     data=miss_pivot_after.to_csv().encode(),
-                    file_name=f"{stn_id}_missing_days_after_distributing.csv",
+                    file_name=f"{stn_id}_Missing Days (After).csv",
                     mime="text/csv",
                     key="dl_miss_after",
                 )
@@ -715,6 +715,6 @@ if "df" in st.session_state:
             st.download_button(
                 label="Download Missing Days Pivot",
                 data=miss_pivot_before.to_csv().encode(),
-                file_name=f"{stn_id}_missing_days_pivot.csv",
+                file_name=f"{stn_id}_Missing Days.csv",
                 mime="text/csv",
             )
