@@ -654,10 +654,10 @@ if "df" in st.session_state:
                 # Selected reference line
                 fig_bar.add_hline(y=ref_val, line_dash="dash", line_color="tomato", line_width=2)
                 fig_bar.add_annotation(
-                    x=0, xref="paper", y=ref_val, yref="y",
+                    x=0, xref="paper", y=1, yref="paper",
                     text=f"<b>{ref_stat}: {ref_val} mm</b>",
                     showarrow=False,
-                    xanchor="left", yanchor="bottom",
+                    xanchor="left", yanchor="top",
                     font=dict(size=15, color="tomato"),
                     bgcolor="rgba(255,255,255,0.7)",
                     bordercolor="tomato",
