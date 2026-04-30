@@ -288,8 +288,7 @@ def build_base(df, rain_col, distribute):
         )
         annual = annual.merge(raw_missing, on="Year", how="left")
         annual = annual.merge(after_missing, on="Year", how="left")
-        annual = annual[["Year", "Accumulated_Readings",
-                          "Before Distributing", "After Distributing", "Annual_Rainfall_mm"]]
+        annual = annual[["Year", "Before Distributing", "After Distributing", "Annual_Rainfall_mm"]]
     else:
         # Without distribution: subtract covered days from raw NaN count
         if period_col:
@@ -309,7 +308,7 @@ def build_base(df, rain_col, distribute):
         else:
             raw_missing = raw_missing.rename(columns={"Before Distributing": "Missing_Days"})
         annual = annual.merge(raw_missing, on="Year", how="left")
-        annual = annual[["Year", "Accumulated_Readings", "Missing_Days", "Annual_Rainfall_mm"]]
+        annual = annual[["Year", "Missing_Days", "Annual_Rainfall_mm"]]
 
     month_names = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
                    7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
@@ -475,22 +474,22 @@ if "df" in st.session_state:
                                             index=len(all_years) - 1, key="bar_sel_year")
                 with col_y2:
                     st.markdown("**Show bars**")
-                    sw_mean_sel   = st.toggle("Mean (selected year)",   value=True,  key="sw_sel_year")
+                    sw_sel_year   = st.toggle("Selected year",          value=True,  key="sw_sel_year")
                     sw_med_sel    = st.toggle("Median (selected year)", value=False, key="sw_med_sel")
                     sw_mean_all   = st.toggle("Mean (all years)",       value=False, key="sw_mean_all")
                     sw_median_all = st.toggle("Median (all years)",     value=False, key="sw_median_all")
                     show_bars = (
-                        (["Mean (selected year)"]   if sw_mean_sel   else []) +
+                        (["Selected year"]          if sw_sel_year   else []) +
                         (["Median (selected year)"] if sw_med_sel    else []) +
                         (["Mean (all years)"]       if sw_mean_all   else []) +
                         (["Median (all years)"]     if sw_median_all else [])
                     )
                 bar_base = base[base["Year"] == sel_year].copy()
 
-                # Mean of daily values per month for selected year
+                # Monthly totals for selected year
                 monthly_tot = (bar_base.groupby("Month")[rain_col]
-                               .mean().round(1).reset_index()
-                               .rename(columns={rain_col: "Mean_sel"}))
+                               .sum().round(1).reset_index()
+                               .rename(columns={rain_col: "Rainfall_mm"}))
 
 
                 # Mean & Median across ALL years per month
@@ -546,14 +545,14 @@ if "df" in st.session_state:
                     miss_label = "Missing days: %{customdata[0]}"
 
                 fig_bar = go.Figure()
-                if "Mean (selected year)" in show_bars:
+                if "Selected year" in show_bars:
                     fig_bar.add_trace(go.Bar(
-                        name=f"Mean daily ({sel_year})",
+                        name=str(sel_year),
                         x=agg["Month_Name"].tolist(),
-                        y=agg["Mean_sel"].tolist(),
+                        y=agg["Rainfall_mm"].tolist(),
                         customdata=agg[["Missing_Raw", "Missing_Dist"]].values,
                         hovertemplate=(
-                            f"<b>%{{x}} — Mean daily {sel_year}</b><br>Rainfall: %{{y}} mm<br>" +
+                            f"<b>%{{x}} {sel_year}</b><br>Rainfall: %{{y}} mm<br>" +
                             miss_label + "<extra></extra>"
                         ),
                         text=agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
