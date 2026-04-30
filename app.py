@@ -475,23 +475,23 @@ if "df" in st.session_state:
                                             index=len(all_years) - 1, key="bar_sel_year")
                 with col_y2:
                     st.markdown("**Show bars**")
-                    sw_sel_year   = st.toggle("Selected year",         value=True,  key="sw_sel_year")
+                    sw_mean_sel   = st.toggle("Mean (selected year)",   value=True,  key="sw_sel_year")
                     sw_med_sel    = st.toggle("Median (selected year)", value=False, key="sw_med_sel")
                     sw_mean_all   = st.toggle("Mean (all years)",       value=False, key="sw_mean_all")
                     sw_median_all = st.toggle("Median (all years)",     value=False, key="sw_median_all")
                     show_bars = (
-                        (["Selected year"]          if sw_sel_year   else []) +
+                        (["Mean (selected year)"]   if sw_mean_sel   else []) +
                         (["Median (selected year)"] if sw_med_sel    else []) +
                         (["Mean (all years)"]       if sw_mean_all   else []) +
                         (["Median (all years)"]     if sw_median_all else [])
                     )
                 bar_base = base[base["Year"] == sel_year].copy()
 
-                # Monthly totals for selected year
+                # Mean of daily values per month for selected year
                 monthly_tot = (bar_base.groupby("Month")[rain_col]
-                               .sum().reset_index()
-                               .rename(columns={rain_col: "Rainfall_mm"}))
-                monthly_tot["Rainfall_mm"] = monthly_tot["Rainfall_mm"].round(1)
+                               .mean().round(1).reset_index()
+                               .rename(columns={rain_col: "Mean_sel"}))
+
 
                 # Mean & Median across ALL years per month
                 all_yr_monthly = (base.groupby(["Year", "Month"])[rain_col]
@@ -532,6 +532,7 @@ if "df" in st.session_state:
 
                 agg = monthly_tot.merge(mean_med, on="Month", how="left")
                 agg = agg.merge(sel_yr_daily_med, on="Month", how="left")
+
                 agg = agg.merge(miss_raw, on="Month", how="left")
                 agg = agg.merge(miss_dist, on="Month", how="left")
                 agg["Month_Name"] = pd.Categorical(
@@ -545,14 +546,14 @@ if "df" in st.session_state:
                     miss_label = "Missing days: %{customdata[0]}"
 
                 fig_bar = go.Figure()
-                if "Selected year" in show_bars:
+                if "Mean (selected year)" in show_bars:
                     fig_bar.add_trace(go.Bar(
-                        name=str(sel_year),
+                        name=f"Mean daily ({sel_year})",
                         x=agg["Month_Name"].tolist(),
-                        y=agg["Rainfall_mm"].tolist(),
+                        y=agg["Mean_sel"].tolist(),
                         customdata=agg[["Missing_Raw", "Missing_Dist"]].values,
                         hovertemplate=(
-                            f"<b>%{{x}} {sel_year}</b><br>Rainfall: %{{y}} mm<br>" +
+                            f"<b>%{{x}} — Mean daily {sel_year}</b><br>Rainfall: %{{y}} mm<br>" +
                             miss_label + "<extra></extra>"
                         ),
                         text=agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
