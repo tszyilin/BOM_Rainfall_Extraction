@@ -640,22 +640,23 @@ if "df" in st.session_state:
                     textposition="outside",
                 ))
 
-                annotation_y = 1.0
+                # Place labels side by side: mean on left, median to its right
+                mean_x   = 0
+                median_x = 0.22 if sw_ref_mean else 0
                 if sw_ref_mean:
                     fig_bar.add_hline(y=mean_val, line_dash="dash", line_color="tomato", line_width=2)
                     fig_bar.add_annotation(
-                        x=0, xref="paper", y=annotation_y, yref="paper",
+                        x=mean_x, xref="paper", y=1, yref="paper",
                         text=f"<b>Mean: {mean_val} mm</b>",
                         showarrow=False, xanchor="left", yanchor="top",
                         font=dict(size=15, color="tomato"),
                         bgcolor="rgba(255,255,255,0.7)",
                         bordercolor="tomato", borderwidth=1, borderpad=5,
                     )
-                    annotation_y -= 0.08
                 if sw_ref_median:
                     fig_bar.add_hline(y=median_val, line_dash="dot", line_color="mediumseagreen", line_width=2)
                     fig_bar.add_annotation(
-                        x=0, xref="paper", y=annotation_y, yref="paper",
+                        x=median_x, xref="paper", y=1, yref="paper",
                         text=f"<b>Median: {median_val} mm</b>",
                         showarrow=False, xanchor="left", yanchor="top",
                         font=dict(size=15, color="mediumseagreen"),
