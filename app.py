@@ -594,10 +594,6 @@ if "df" in st.session_state:
                         key="bar_sel_month",
                     )
                 with col_m2:
-                    st.markdown("**Show bars**")
-                    sw_m_annual = st.toggle("Annual total",  value=True,  key="sw_m_annual")
-                    sw_m_mean   = st.toggle("Mean",          value=False, key="sw_m_mean")
-                    sw_m_median = st.toggle("Median",        value=False, key="sw_m_median")
                     st.markdown("**Reference line**")
                     sw_ref_mean   = st.toggle("Mean line",   value=True,  key="sw_ref_mean")
                     sw_ref_median = st.toggle("Median line", value=False, key="sw_ref_median")
@@ -634,32 +630,15 @@ if "df" in st.session_state:
 
                 fig_bar = go.Figure()
 
-                if sw_m_annual:
-                    fig_bar.add_trace(go.Bar(
-                        name="Annual total",
-                        x=yr_agg["Year"].tolist(),
-                        y=yr_agg["Rainfall_mm"].tolist(),
-                        customdata=yr_agg[["Missing_Raw", "Missing_Dist"]].values,
-                        hovertemplate="<b>%{x}</b><br>Rainfall: %{y} mm<br>" + miss_label + "<extra></extra>",
-                        text=yr_agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
-                        textposition="outside",
-                    ))
-                if sw_m_mean:
-                    fig_bar.add_trace(go.Bar(
-                        name=f"Mean ({mean_val} mm)",
-                        x=yr_agg["Year"].tolist(),
-                        y=[mean_val] * len(yr_agg),
-                        hovertemplate=f"<b>Mean</b>: {mean_val} mm<extra></extra>",
-                        marker_color="tomato", opacity=0.6,
-                    ))
-                if sw_m_median:
-                    fig_bar.add_trace(go.Bar(
-                        name=f"Median ({median_val} mm)",
-                        x=yr_agg["Year"].tolist(),
-                        y=[median_val] * len(yr_agg),
-                        hovertemplate=f"<b>Median</b>: {median_val} mm<extra></extra>",
-                        marker_color="mediumseagreen", opacity=0.6,
-                    ))
+                fig_bar.add_trace(go.Bar(
+                    name="Annual total",
+                    x=yr_agg["Year"].tolist(),
+                    y=yr_agg["Rainfall_mm"].tolist(),
+                    customdata=yr_agg[["Missing_Raw", "Missing_Dist"]].values,
+                    hovertemplate="<b>%{x}</b><br>Rainfall: %{y} mm<br>" + miss_label + "<extra></extra>",
+                    text=yr_agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
+                    textposition="outside",
+                ))
 
                 annotation_y = 1.0
                 if sw_ref_mean:
@@ -684,17 +663,13 @@ if "df" in st.session_state:
                         bordercolor="mediumseagreen", borderwidth=1, borderpad=5,
                     )
 
-                if not sw_m_annual and not sw_m_mean and not sw_m_median:
-                    st.info("Select at least one bar to display.")
-                else:
-                    fig_bar.update_layout(
-                        barmode="group",
-                        xaxis_title="Year",
-                        yaxis_title="Rainfall (mm)",
-                        bargap=0.15,
-                    )
-                    st.plotly_chart(fig_bar, use_container_width=True)
-                    st.caption("⚠ number above bar = missing days (raw) for that month/year")
+                fig_bar.update_layout(
+                    xaxis_title="Year",
+                    yaxis_title="Rainfall (mm)",
+                    bargap=0.15,
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+                st.caption("⚠ number above bar = missing days (raw) for that month/year")
 
         st.subheader("Annual Summary")
         st.dataframe(annual, use_container_width=True, hide_index=True)
