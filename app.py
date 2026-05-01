@@ -647,7 +647,7 @@ if "df" in st.session_state:
 
                 # Place labels side by side: mean on left, median to its right
                 mean_x   = 0
-                median_x = 0.22 if sw_ref_mean else 0
+                median_x = 0.12 if sw_ref_mean else 0
                 if sw_ref_mean:
                     fig_bar.add_hline(y=mean_val, line_dash="dash", line_color="tomato", line_width=2)
                     fig_bar.add_annotation(
