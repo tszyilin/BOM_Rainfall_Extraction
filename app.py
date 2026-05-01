@@ -594,12 +594,14 @@ if "df" in st.session_state:
                         key="bar_sel_month",
                     )
                 with col_m2:
-                    ref_stat = st.selectbox(
-                        "Reference line",
-                        options=["Mean", "Median"],
-                        index=0,
-                        key="bar_ref_stat",
-                    )
+                    st.markdown("**Show bars**")
+                    sw_m_annual = st.toggle("Annual total",  value=True,  key="sw_m_annual")
+                    sw_m_mean   = st.toggle("Mean",          value=False, key="sw_m_mean")
+                    sw_m_median = st.toggle("Median",        value=False, key="sw_m_median")
+                    st.markdown("**Reference line**")
+                    sw_ref_mean   = st.toggle("Mean line",   value=True,  key="sw_ref_mean")
+                    sw_ref_median = st.toggle("Median line", value=False, key="sw_ref_median")
+
                 bar_base = base[base["Month"] == sel_month].copy()
 
                 # Annual total for that month per year
@@ -612,21 +614,18 @@ if "df" in st.session_state:
                 raw_m = df[["Year", "Month", rain_col]].copy()
                 raw_m[rain_col] = pd.to_numeric(raw_m[rain_col], errors="coerce")
                 raw_m = raw_m[raw_m["Month"] == sel_month]
-                miss_raw_yr = (raw_m.groupby("Year")[rain_col]
-                               .apply(lambda x: int(x.isna().sum())).reset_index()
-                               .rename(columns={rain_col: "Missing_Raw"}))
+                _mr = raw_m.groupby("Year")[rain_col].apply(lambda x: int(x.isna().sum())).reset_index()
+                _mr.columns = ["Year", "Missing_Raw"]
 
                 # Missing days per year (after distribute)
-                miss_dist_yr = (bar_base.groupby("Year")[rain_col]
-                                .apply(lambda x: int(x.isna().sum())).reset_index()
-                                .rename(columns={rain_col: "Missing_Dist"}))
+                _md = bar_base.groupby("Year")[rain_col].apply(lambda x: int(x.isna().sum())).reset_index()
+                _md.columns = ["Year", "Missing_Dist"]
 
-                yr_agg = yr_tot.merge(miss_raw_yr, on="Year", how="left")
-                yr_agg = yr_agg.merge(miss_dist_yr, on="Year", how="left")
+                yr_agg = yr_tot.merge(_mr, on="Year", how="left")
+                yr_agg = yr_agg.merge(_md, on="Year", how="left")
 
                 mean_val   = round(yr_agg["Rainfall_mm"].mean(), 1)
                 median_val = round(yr_agg["Rainfall_mm"].median(), 1)
-                ref_val    = mean_val if ref_stat == "Mean" else median_val
 
                 if distribute:
                     miss_label = "Missing (raw): %{customdata[0]}<br>Missing (after dist): %{customdata[1]}"
@@ -635,42 +634,67 @@ if "df" in st.session_state:
 
                 fig_bar = go.Figure()
 
-                # Individual year bars
-                fig_bar.add_trace(go.Bar(
-                    name="Annual total",
-                    x=yr_agg["Year"].tolist(),
-                    y=yr_agg["Rainfall_mm"].tolist(),
-                    customdata=yr_agg[["Missing_Raw", "Missing_Dist"]].values,
-                    hovertemplate=(
-                        "<b>%{x}</b><br>Rainfall: %{y} mm<br>" +
-                        miss_label + "<extra></extra>"
-                    ),
-                    text=yr_agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
-                    textposition="outside",
-                    marker_color="steelblue",
-                ))
+                if sw_m_annual:
+                    fig_bar.add_trace(go.Bar(
+                        name="Annual total",
+                        x=yr_agg["Year"].tolist(),
+                        y=yr_agg["Rainfall_mm"].tolist(),
+                        customdata=yr_agg[["Missing_Raw", "Missing_Dist"]].values,
+                        hovertemplate="<b>%{x}</b><br>Rainfall: %{y} mm<br>" + miss_label + "<extra></extra>",
+                        text=yr_agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
+                        textposition="outside",
+                    ))
+                if sw_m_mean:
+                    fig_bar.add_trace(go.Bar(
+                        name=f"Mean ({mean_val} mm)",
+                        x=yr_agg["Year"].tolist(),
+                        y=[mean_val] * len(yr_agg),
+                        hovertemplate=f"<b>Mean</b>: {mean_val} mm<extra></extra>",
+                        marker_color="tomato", opacity=0.6,
+                    ))
+                if sw_m_median:
+                    fig_bar.add_trace(go.Bar(
+                        name=f"Median ({median_val} mm)",
+                        x=yr_agg["Year"].tolist(),
+                        y=[median_val] * len(yr_agg),
+                        hovertemplate=f"<b>Median</b>: {median_val} mm<extra></extra>",
+                        marker_color="mediumseagreen", opacity=0.6,
+                    ))
 
-                # Selected reference line
-                fig_bar.add_hline(y=ref_val, line_dash="dash", line_color="tomato", line_width=2)
-                fig_bar.add_annotation(
-                    x=0, xref="paper", y=1, yref="paper",
-                    text=f"<b>{ref_stat}: {ref_val} mm</b>",
-                    showarrow=False,
-                    xanchor="left", yanchor="top",
-                    font=dict(size=15, color="tomato"),
-                    bgcolor="rgba(255,255,255,0.7)",
-                    bordercolor="tomato",
-                    borderwidth=1,
-                    borderpad=5,
-                )
+                annotation_y = 1.0
+                if sw_ref_mean:
+                    fig_bar.add_hline(y=mean_val, line_dash="dash", line_color="tomato", line_width=2)
+                    fig_bar.add_annotation(
+                        x=0, xref="paper", y=annotation_y, yref="paper",
+                        text=f"<b>Mean: {mean_val} mm</b>",
+                        showarrow=False, xanchor="left", yanchor="top",
+                        font=dict(size=15, color="tomato"),
+                        bgcolor="rgba(255,255,255,0.7)",
+                        bordercolor="tomato", borderwidth=1, borderpad=5,
+                    )
+                    annotation_y -= 0.08
+                if sw_ref_median:
+                    fig_bar.add_hline(y=median_val, line_dash="dot", line_color="mediumseagreen", line_width=2)
+                    fig_bar.add_annotation(
+                        x=0, xref="paper", y=annotation_y, yref="paper",
+                        text=f"<b>Median: {median_val} mm</b>",
+                        showarrow=False, xanchor="left", yanchor="top",
+                        font=dict(size=15, color="mediumseagreen"),
+                        bgcolor="rgba(255,255,255,0.7)",
+                        bordercolor="mediumseagreen", borderwidth=1, borderpad=5,
+                    )
 
-                fig_bar.update_layout(
-                    xaxis_title="Year",
-                    yaxis_title="Rainfall (mm)",
-                    bargap=0.15,
-                )
-                st.plotly_chart(fig_bar, use_container_width=True)
-                st.caption("⚠ number above bar = missing days (raw) for that month/year")
+                if not sw_m_annual and not sw_m_mean and not sw_m_median:
+                    st.info("Select at least one bar to display.")
+                else:
+                    fig_bar.update_layout(
+                        barmode="group",
+                        xaxis_title="Year",
+                        yaxis_title="Rainfall (mm)",
+                        bargap=0.15,
+                    )
+                    st.plotly_chart(fig_bar, use_container_width=True)
+                    st.caption("⚠ number above bar = missing days (raw) for that month/year")
 
         st.subheader("Annual Summary")
         st.dataframe(annual, use_container_width=True, hide_index=True)
