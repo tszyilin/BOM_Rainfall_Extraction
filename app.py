@@ -474,12 +474,10 @@ if "df" in st.session_state:
                 with col_y2:
                     st.markdown("**Show bars**")
                     sw_sel_year   = st.toggle("Selected year",          value=True,  key="sw_sel_year")
-                    sw_med_sel    = st.toggle("Median (selected year)", value=False, key="sw_med_sel")
                     sw_mean_all   = st.toggle("Mean (all years)",       value=False, key="sw_mean_all")
                     sw_median_all = st.toggle("Median (all years)",     value=False, key="sw_median_all")
                     show_bars = (
                         (["Selected year"]          if sw_sel_year   else []) +
-                        (["Median (selected year)"] if sw_med_sel    else []) +
                         (["Mean (all years)"]       if sw_mean_all   else []) +
                         (["Median (all years)"]     if sw_median_all else [])
                     )
@@ -517,19 +515,7 @@ if "df" in st.session_state:
                              .apply(lambda x: int(x.isna().sum())).reset_index()
                              .rename(columns={rain_col: "Missing_Dist"}))
 
-                # Median of monthly totals across all years per month (for selected year comparison)
-                median_yr = (all_yr_monthly2.groupby("Month")["Rainfall_mm"]
-                             .median().round(1).reset_index()
-                             .rename(columns={"Rainfall_mm": "Median_yr"}))
-
-                # Median of monthly totals for selected year only (one value per month = the total itself,
-                # so we use median of daily values within each month for the selected year)
-                sel_yr_daily_med = (bar_base.groupby("Month")[rain_col]
-                                    .median().round(1).reset_index()
-                                    .rename(columns={rain_col: "Median_sel"}))
-
                 agg = monthly_tot.merge(mean_med, on="Month", how="left")
-                agg = agg.merge(sel_yr_daily_med, on="Month", how="left")
 
                 agg = agg.merge(miss_raw, on="Month", how="left")
                 agg = agg.merge(miss_dist, on="Month", how="left")
@@ -556,13 +542,6 @@ if "df" in st.session_state:
                         ),
                         text=agg["Missing_Raw"].apply(lambda v: f"⚠ {int(v)}" if v > 0 else ""),
                         textposition="outside",
-                    ))
-                if "Median (selected year)" in show_bars:
-                    fig_bar.add_trace(go.Bar(
-                        name=f"Median daily ({sel_year})",
-                        x=agg["Month_Name"].tolist(),
-                        y=agg["Median_sel"].tolist(),
-                        hovertemplate=f"<b>%{{x}} — Median daily {sel_year}</b><br>Rainfall: %{{y}} mm<extra></extra>",
                     ))
                 if "Mean (all years)" in show_bars:
                     fig_bar.add_trace(go.Bar(
