@@ -647,23 +647,21 @@ if "df" in st.session_state:
 
                 if sw_ref_mean:
                     fig_bar.add_hline(y=mean_val, line_dash="dash", line_color="tomato", line_width=2)
-                    fig_bar.add_annotation(
-                        x=0, xref="paper", y=1, yref="paper",
-                        text=f"<b>Mean: {mean_val} mm</b>",
-                        showarrow=False, xanchor="left", yanchor="top",
-                        font=dict(size=15, color="tomato"),
-                        bgcolor="rgba(255,255,255,0.7)",
-                        bordercolor="tomato", borderwidth=1, borderpad=5,
-                    )
                 if sw_ref_median:
                     fig_bar.add_hline(y=median_val, line_dash="dot", line_color="mediumseagreen", line_width=2)
+                if sw_ref_mean or sw_ref_median:
+                    parts = []
+                    if sw_ref_mean:
+                        parts.append(f'<span style="color:tomato"><b>Mean: {mean_val} mm</b></span>')
+                    if sw_ref_median:
+                        parts.append(f'<span style="color:mediumseagreen"><b>Median: {median_val} mm</b></span>')
                     fig_bar.add_annotation(
-                        x=0.02 if sw_ref_mean else 0, xref="paper", y=1, yref="paper",
-                        text=f"<b>Median: {median_val} mm</b>",
+                        x=0, xref="paper", y=1, yref="paper",
+                        text=" &nbsp;|&nbsp; ".join(parts),
                         showarrow=False, xanchor="left", yanchor="top",
-                        font=dict(size=15, color="mediumseagreen"),
+                        font=dict(size=15),
                         bgcolor="rgba(255,255,255,0.7)",
-                        bordercolor="mediumseagreen", borderwidth=1, borderpad=5,
+                        bordercolor="grey", borderwidth=1, borderpad=5,
                     )
 
                 fig_bar.update_layout(
