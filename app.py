@@ -28,7 +28,12 @@ st.markdown("""
 <style>
 small.st-emotion-cache-1gulkj5, .st-emotion-cache-1gulkj5 { display: none; }
 [data-testid="InputInstructions"] { display: none; }
+/* Hide the built-in dataframe download button (multiple selector variants) */
 [data-testid="stElementToolbarButton"][title="Download as CSV"] { display: none; }
+[data-testid="stElementToolbarButton"][aria-label="Download as CSV"] { display: none; }
+[data-testid="stElementToolbarButton"]:has(svg path[d*="M4 16v1a3"]) { display: none; }
+button[title="Download as CSV"] { display: none; }
+button[aria-label="Download as CSV"] { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
