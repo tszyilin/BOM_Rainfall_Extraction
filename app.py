@@ -28,6 +28,7 @@ st.markdown("""
 <style>
 small.st-emotion-cache-1gulkj5, .st-emotion-cache-1gulkj5 { display: none; }
 [data-testid="InputInstructions"] { display: none; }
+[data-testid="stElementToolbarButton"][title="Download as CSV"] { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
