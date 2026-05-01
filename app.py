@@ -658,7 +658,7 @@ if "df" in st.session_state:
                 if sw_ref_median:
                     fig_bar.add_hline(y=median_val, line_dash="dot", line_color="mediumseagreen", line_width=2)
                     fig_bar.add_annotation(
-                        x=0.1 if sw_ref_mean else 0, xref="paper", y=1, yref="paper",
+                        x=0.02 if sw_ref_mean else 0, xref="paper", y=1, yref="paper",
                         text=f"<b>Median: {median_val} mm</b>",
                         showarrow=False, xanchor="left", yanchor="top",
                         font=dict(size=15, color="mediumseagreen"),
