@@ -200,18 +200,15 @@ def load_stations():
 
 @st.cache_data(show_spinner=False)
 def geocode_postcode(postcode: str):
-    """Return (lat, lon, display_name) for an Australian postcode via Nominatim."""
-    import urllib.request, json, urllib.parse
-    query = urllib.parse.urlencode({
-        "q": f"{postcode}, Australia",
-        "format": "json",
-        "limit": 1,
-        "countrycodes": "au",
-    })
-    url = f"https://nominatim.openstreetmap.org/search?{query}"
-    req = urllib.request.Request(url, headers={"User-Agent": "BOM-Rainfall-App/1.0"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        results = json.loads(r.read())
+    """Return (lat, lon, display_name) or None. Uses Nominatim via requests."""
+    resp = requests.get(
+        "https://nominatim.openstreetmap.org/search",
+        params={"q": f"{postcode}, Australia", "format": "json", "limit": 1, "countrycodes": "au"},
+        headers={"User-Agent": "BOM-Rainfall-App/1.0 (github.com/tszyilin/BOM_Rainfall_Extraction)"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    results = resp.json()
     if not results:
         return None
     r = results[0]
@@ -425,8 +422,12 @@ with tab_loc:
         loc_marker = None
         map_c_loc, map_z_loc = {"lat": -25, "lon": 133}, 3
         if loc_q.strip():
-            with st.spinner(f"Looking up '{loc_q}'..."):
-                geo_loc = geocode_postcode(loc_q.strip())
+            try:
+                with st.spinner(f"Looking up '{loc_q}'..."):
+                    geo_loc = geocode_postcode(loc_q.strip())
+            except Exception:
+                st.warning("Location lookup failed — the geocoding service may be temporarily unavailable. Try again shortly.")
+                geo_loc = None
             if geo_loc is None:
                 st.warning(f"Location '{loc_q}' not found. Try a more specific name.")
             else:
@@ -465,8 +466,12 @@ with tab_pc:
         pc_marker = None
         map_c, map_z = {"lat": -25, "lon": 133}, 3
         if postcode_q.strip() and len(postcode_q.strip()) == 4 and postcode_q.strip().isdigit():
-            with st.spinner(f"Looking up postcode {postcode_q}..."):
-                geo = geocode_postcode(postcode_q.strip())
+            try:
+                with st.spinner(f"Looking up postcode {postcode_q}..."):
+                    geo = geocode_postcode(postcode_q.strip())
+            except Exception:
+                st.warning("Postcode lookup failed — the geocoding service may be temporarily unavailable. Try again shortly.")
+                geo = None
             if geo is None:
                 st.warning(f"Postcode {postcode_q} not found.")
             else:
