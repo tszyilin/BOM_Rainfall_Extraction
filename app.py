@@ -541,8 +541,8 @@ with tab_ll:
             ll_lat = st.number_input("Latitude", value=-33.87, min_value=-44.0,
                                      max_value=-10.0, step=0.01, format="%.4f", key="map_ll_lat")
         with col_lon:
-            ll_lon = st.number_input("Longitude", value=151.21, min_value=113.0,
-                                     max_value=154.0, step=0.01, format="%.4f", key="map_ll_lon")
+            ll_lon = st.number_input("Longitude", value=151.21, min_value=96.0,
+                                     max_value=160.0, step=0.01, format="%.4f", key="map_ll_lon")
         with col_r:
             ll_radius = st.slider("Radius (km)", min_value=5, max_value=300, value=50,
                                   step=5, key="map_ll_radius")
@@ -560,12 +560,15 @@ with tab_ll:
             dists_l = haversine_km(ll_lat, ll_lon, disp_l["LAT"].values, disp_l["LONG"].values)
             disp_l = disp_l[dists_l <= ll_radius].copy()
             ll_marker = (ll_lat, ll_lon, f"{ll_lat:.4f}, {ll_lon:.4f}")
-            st.caption(f"{len(disp_l):,} stations within {ll_radius} km — click to select")
-            cd = _render_station_map(disp_l, {"lat": ll_lat, "lon": ll_lon},
-                                     max(3, min(10, int(11 - ll_radius / 30))),
-                                     "map_ll", postcode_marker=ll_marker)
-            if cd:
-                _show_station_card(cd)
+            if disp_l.empty:
+                st.warning(f"No stations found within {ll_radius} km of {ll_lat:.4f}, {ll_lon:.4f}. Try a larger radius.")
+            else:
+                st.caption(f"{len(disp_l):,} stations within {ll_radius} km — click to select")
+                cd = _render_station_map(disp_l, {"lat": ll_lat, "lon": ll_lon},
+                                         max(3, min(10, int(11 - ll_radius / 30))),
+                                         "map_ll", postcode_marker=ll_marker)
+                if cd:
+                    _show_station_card(cd)
         else:
             st.info("Enter coordinates and click Search to see nearby stations on the map.")
 
