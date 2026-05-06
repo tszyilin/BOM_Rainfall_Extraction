@@ -223,21 +223,40 @@ def lookup_postcode(postcode: str):
 
 @st.cache_data(show_spinner=False)
 def geocode_location(query: str):
-    """Return (lat, lon, display_name) or None for a place name. Uses Photon (komoot)."""
-    resp = requests.get(
-        "https://photon.komoot.io/api/",
-        params={"q": f"{query} Australia", "limit": 5, "lang": "en"},
-        headers={"User-Agent": "BOM-Rainfall-App/1.0"},
-        timeout=10,
-    )
-    resp.raise_for_status()
-    for feat in resp.json().get("features", []):
-        props = feat.get("properties", {})
-        if props.get("country_code", "").lower() == "au":
-            lon, lat = feat["geometry"]["coordinates"]
-            parts = [props.get(k) for k in ("name", "city", "county", "state") if props.get(k)]
-            parts.append("Australia")
-            return lat, lon, ", ".join(dict.fromkeys(parts))
+    """Return (lat, lon, display_name) or None for a place/suburb name.
+    Tries the local postcode DB locality column first (no API), then Photon as fallback."""
+    # 1. Local locality lookup — covers all Australian suburbs
+    try:
+        db = _postcode_db()
+        q = query.strip().lower()
+        exact = db[db["locality"].str.lower() == q]
+        if not exact.empty:
+            row = exact.iloc[0]
+            return float(row["lat"]), float(row["long"]), f"{row['locality'].title()}, {row['state']}, Australia"
+        contains = db[db["locality"].str.lower().str.contains(q, regex=False, na=False)]
+        if not contains.empty:
+            row = contains.iloc[0]
+            return float(row["lat"]), float(row["long"]), f"{row['locality'].title()}, {row['state']}, Australia"
+    except Exception:
+        pass
+    # 2. Photon fallback for non-suburb queries (e.g. "Blue Mountains", "Sydney CBD")
+    try:
+        resp = requests.get(
+            "https://photon.komoot.io/api/",
+            params={"q": f"{query} Australia", "limit": 5, "lang": "en"},
+            headers={"User-Agent": "BOM-Rainfall-App/1.0"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        for feat in resp.json().get("features", []):
+            props = feat.get("properties", {})
+            if props.get("country_code", "").lower() == "au":
+                lon, lat = feat["geometry"]["coordinates"]
+                parts = [props.get(k) for k in ("name", "city", "county", "state") if props.get(k)]
+                parts.append("Australia")
+                return lat, lon, ", ".join(dict.fromkeys(parts))
+    except Exception:
+        pass
     return None
 
 
