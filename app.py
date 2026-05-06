@@ -326,6 +326,7 @@ def _render_station_map(disp, center, zoom, map_key, postcode_marker=None):
         st.caption(f"{len(disp):,} stations shown — refine your search to fewer than 500 to enable station selection.")
         selection_enabled = False
     else:
+        st.caption(f"{len(disp):,} stations — click a marker to select")
         mc = MarkerCluster().add_to(m)
         for _, row in disp.iterrows():
             color = _completeness_color(row["PC_COMPLET"])
@@ -435,10 +436,12 @@ with tab_name:
             if only_active_n:
                 max_yr = int(pd.to_numeric(stations_df["END_Y"], errors="coerce").max())
                 disp_n = disp_n[pd.to_numeric(disp_n["END_Y"], errors="coerce") >= max_yr - 1]
-            st.caption(f"{len(disp_n):,} stations — click to select")
-            cd = _render_station_map(disp_n, {"lat": -25, "lon": 133}, 3, "map_name")
-            if cd:
-                _show_station_card(cd)
+            if disp_n.empty:
+                st.warning(f"No stations found matching '{name_q}'. Try a shorter or different name.")
+            else:
+                cd = _render_station_map(disp_n, {"lat": -25, "lon": 133}, 3, "map_name")
+                if cd:
+                    _show_station_card(cd)
         else:
             st.info("Enter a station name above to see matching stations on the map.")
 
@@ -526,7 +529,6 @@ with tab_pc:
             except Exception:
                 st.warning("Postcode lookup failed — geocoding service temporarily unavailable. Try again shortly.")
         if pc_marker:
-            st.caption(f"{len(disp_p):,} stations within {radius_km} km — click to select")
             cd = _render_station_map(disp_p, map_c, map_z, "map_pc", postcode_marker=pc_marker)
             if cd:
                 _show_station_card(cd)
@@ -563,7 +565,6 @@ with tab_ll:
             if disp_l.empty:
                 st.warning(f"No stations found within {ll_radius} km of {ll_lat:.4f}, {ll_lon:.4f}. Try a larger radius.")
             else:
-                st.caption(f"{len(disp_l):,} stations within {ll_radius} km — click to select")
                 cd = _render_station_map(disp_l, {"lat": ll_lat, "lon": ll_lon},
                                          max(3, min(10, int(11 - ll_radius / 30))),
                                          "map_ll", postcode_marker=ll_marker)
