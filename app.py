@@ -425,22 +425,21 @@ with tab_loc:
         loc_marker = None
         map_c_loc, map_z_loc = {"lat": -25, "lon": 133}, 3
         if loc_q.strip():
-            geo_loc = None
             try:
                 with st.spinner(f"Looking up '{loc_q}'..."):
                     geo_loc = geocode_postcode(loc_q.strip())
                 if geo_loc is None:
                     st.warning(f"Location '{loc_q}' not found. Try a more specific name.")
+                else:
+                    loc_lat, loc_lon, loc_name = geo_loc
+                    dists_loc = haversine_km(loc_lat, loc_lon, disp_loc["LAT"].values, disp_loc["LONG"].values)
+                    disp_loc = disp_loc[dists_loc <= loc_radius].copy()
+                    map_c_loc = {"lat": loc_lat, "lon": loc_lon}
+                    map_z_loc = max(3, min(10, int(11 - loc_radius / 30)))
+                    loc_marker = (loc_lat, loc_lon, loc_name)
+                    st.info(f"📍 **{loc_name}**")
             except Exception:
                 st.warning("Location lookup failed — geocoding service temporarily unavailable. Try again shortly.")
-            else:
-                loc_lat, loc_lon, loc_name = geo_loc
-                dists_loc = haversine_km(loc_lat, loc_lon, disp_loc["LAT"].values, disp_loc["LONG"].values)
-                disp_loc = disp_loc[dists_loc <= loc_radius].copy()
-                map_c_loc = {"lat": loc_lat, "lon": loc_lon}
-                map_z_loc = max(3, min(10, int(11 - loc_radius / 30)))
-                loc_marker = (loc_lat, loc_lon, loc_name)
-                st.info(f"📍 **{loc_name}**")
         if loc_marker:
             st.caption(f"{len(disp_loc):,} stations within {loc_radius} km — click to select")
             cd = _render_station_map(disp_loc, map_c_loc, map_z_loc, "map_loc", postcode_marker=loc_marker)
@@ -469,22 +468,21 @@ with tab_pc:
         pc_marker = None
         map_c, map_z = {"lat": -25, "lon": 133}, 3
         if postcode_q.strip() and len(postcode_q.strip()) == 4 and postcode_q.strip().isdigit():
-            geo = None
             try:
                 with st.spinner(f"Looking up postcode {postcode_q}..."):
                     geo = geocode_postcode(postcode_q.strip())
                 if geo is None:
                     st.warning(f"Postcode {postcode_q} not found.")
+                else:
+                    pc_lat, pc_lon, pc_name = geo
+                    dists = haversine_km(pc_lat, pc_lon, disp_p["LAT"].values, disp_p["LONG"].values)
+                    disp_p = disp_p[dists <= radius_km].copy()
+                    map_c = {"lat": pc_lat, "lon": pc_lon}
+                    map_z = max(3, min(10, int(11 - radius_km / 30)))
+                    pc_marker = (pc_lat, pc_lon, pc_name)
+                    st.info(f"📍 **{pc_name}**")
             except Exception:
                 st.warning("Postcode lookup failed — geocoding service temporarily unavailable. Try again shortly.")
-            else:
-                pc_lat, pc_lon, pc_name = geo
-                dists = haversine_km(pc_lat, pc_lon, disp_p["LAT"].values, disp_p["LONG"].values)
-                disp_p = disp_p[dists <= radius_km].copy()
-                map_c = {"lat": pc_lat, "lon": pc_lon}
-                map_z = max(3, min(10, int(11 - radius_km / 30)))
-                pc_marker = (pc_lat, pc_lon, pc_name)
-                st.info(f"📍 **{pc_name}**")
         if pc_marker:
             st.caption(f"{len(disp_p):,} stations within {radius_km} km — click to select")
             cd = _render_station_map(disp_p, map_c, map_z, "map_pc", postcode_marker=pc_marker)
