@@ -21,6 +21,7 @@ HEADERS = {
 }
 
 st.set_page_config(page_title="BOM Rainfall Downloader", layout="wide")
+st.session_state.setdefault("station_id_input", "012068")
 st.title("BOM Rainfall Downloader")
 st.caption("Data sourced from Bureau of Meteorology Climate Data Online")
 
@@ -39,10 +40,7 @@ button[aria-label="Download as CSV"] { display: none; }
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.header("Search")
-    with st.form("search_form"):
-        station_input = st.text_input("Station ID", value="012068", help="Enter a BOM station number (e.g. 012068)")
-        search = st.form_submit_button("Search Rainfall Station", use_container_width=True)
+    st.header("Options")
     debug_mode = st.checkbox("Show debug info")
     distribute = st.toggle("Distribute accumulated rainfall evenly", value=True,
                            help="Splits multi-day accumulated readings across preceding days so missing days aren't overestimated")
@@ -188,6 +186,340 @@ def fetch_rainfall(station_id: str, debug: bool = False):
             df = pd.read_csv(f)
 
     return df, station_info
+
+
+@st.cache_data(show_spinner=False)
+def load_stations():
+    try:
+        df = pd.read_parquet("data/stations.parquet")
+        df["SITE_ID_STR"] = df["SITE_ID"].astype(int).astype(str).str.zfill(6)
+        return df
+    except Exception:
+        return None
+
+
+@st.cache_data(show_spinner=False)
+def geocode_postcode(postcode: str):
+    """Return (lat, lon, display_name) for an Australian postcode via Nominatim."""
+    import urllib.request, json, urllib.parse
+    query = urllib.parse.urlencode({
+        "q": f"{postcode}, Australia",
+        "format": "json",
+        "limit": 1,
+        "countrycodes": "au",
+    })
+    url = f"https://nominatim.openstreetmap.org/search?{query}"
+    req = urllib.request.Request(url, headers={"User-Agent": "BOM-Rainfall-App/1.0"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        results = json.loads(r.read())
+    if not results:
+        return None
+    r = results[0]
+    return float(r["lat"]), float(r["lon"]), r.get("display_name", postcode)
+
+
+def _show_station_card(cd):
+    sel_id    = str(cd[0]).strip().zfill(6)
+    sel_name  = str(cd[1]).strip()
+    sel_start = str(cd[2]).strip() if len(cd) > 2 else "?"
+    sel_end   = str(cd[3]).strip() if len(cd) > 3 else "?"
+    sel_pct   = str(cd[4]).strip() if len(cd) > 4 else "?"
+    try:
+        total_days = (int(sel_end) - int(sel_start) + 1) * 365
+        recorded   = round(total_days * float(sel_pct) / 100)
+        pct_label  = f"{sel_pct}% ({recorded:,} / {total_days:,} days recorded)"
+    except Exception:
+        pct_label  = f"{sel_pct}%"
+    c1, c2, c3 = st.columns([3, 0.7, 1.3])
+    with c1:
+        st.info(
+            f"**{sel_name}**  \n"
+            f"Station ID: `{sel_id}` &nbsp;|&nbsp; "
+            f"Record: {sel_start}–{sel_end} &nbsp;|&nbsp; "
+            f"Completeness: {pct_label}"
+        )
+    with c2:
+        st.write("")
+        st.write("")
+        if st.button("Use this Station", type="primary", use_container_width=True,
+                     key=f"use_stn_{sel_id}"):
+            st.session_state["_pending_station_id"] = sel_id
+            st.session_state["_auto_search"] = True
+            st.rerun()
+
+
+def _completeness_color(pct):
+    if pct >= 90:
+        return "#2ecc71"
+    if pct >= 70:
+        return "#f39c12"
+    return "#e74c3c"
+
+
+def _render_station_map(disp, center, zoom, map_key, postcode_marker=None):
+    """Render an interactive folium station map; return [id, name, start, end, pct] or None."""
+    import folium
+    from folium.plugins import MarkerCluster, FastMarkerCluster
+    from streamlit_folium import st_folium
+
+    m = folium.Map(location=[center["lat"], center["lon"]], zoom_start=zoom, tiles="OpenStreetMap")
+
+    MAX_INTERACTIVE = 500
+    if len(disp) > MAX_INTERACTIVE:
+        color_callback = """
+            function(row) {
+                var pct = row[2];
+                var color = pct >= 90 ? '#2ecc71' : pct >= 70 ? '#f39c12' : '#e74c3c';
+                return L.circleMarker(
+                    new L.LatLng(row[0], row[1]),
+                    {radius: 5, color: 'white', weight: 1,
+                     fillColor: color, fillOpacity: 0.85}
+                );
+            }
+        """
+        FastMarkerCluster(
+            data=disp[["LAT", "LONG", "PC_COMPLET"]].values.tolist(),
+            callback=color_callback,
+        ).add_to(m)
+        st.caption(f"{len(disp):,} stations shown — refine your search to fewer than 500 to enable station selection.")
+        selection_enabled = False
+    else:
+        mc = MarkerCluster().add_to(m)
+        for _, row in disp.iterrows():
+            color = _completeness_color(row["PC_COMPLET"])
+            popup_html = (
+                f"<b>{row['SITE_ID_STR']}</b><br>"
+                f"{row['SITE_NAME']}<br>"
+                f"{row['START_Y']}–{row['END_Y']}"
+            )
+            folium.CircleMarker(
+                location=[row["LAT"], row["LONG"]],
+                radius=7,
+                color="white", weight=1,
+                fill=True, fill_color=color, fill_opacity=0.9,
+                popup=folium.Popup(popup_html, max_width=250),
+                tooltip=f"{row['SITE_ID_STR']} | {row['SITE_NAME']} | {row['START_Y']}–{row['END_Y']}",
+            ).add_to(mc)
+        selection_enabled = True
+
+    if postcode_marker:
+        folium.Marker(
+            location=[postcode_marker[0], postcode_marker[1]],
+            tooltip=postcode_marker[2],
+            icon=folium.Icon(color="red", icon="map-marker", prefix="fa"),
+        ).add_to(m)
+
+    # last_object_clicked fires on marker click (reliable through MarkerCluster).
+    # Excluding bounds/zoom/center prevents scroll/pan from triggering reruns and snapping the map back.
+    map_data = st_folium(m, width="100%", height=450, key=map_key,
+                         returned_objects=["last_object_clicked"])
+
+    if selection_enabled and map_data:
+        clicked = map_data.get("last_object_clicked")
+        if clicked and isinstance(clicked, dict):
+            import numpy as np
+            click_lat = clicked.get("lat")
+            click_lng = clicked.get("lng")
+            if click_lat is not None and click_lng is not None:
+                dists = haversine_km(click_lat, click_lng,
+                                     disp["LAT"].values, disp["LONG"].values)
+                nearest_idx = int(np.argmin(dists))
+                if dists[nearest_idx] < 0.5:
+                    r = disp.iloc[nearest_idx]
+                    start = str(int(r["START_Y"])) if pd.notna(r["START_Y"]) else "?"
+                    end   = str(int(r["END_Y"]))   if pd.notna(r["END_Y"])   else "?"
+                    return [r["SITE_ID_STR"], r["SITE_NAME"], start, end, str(r["PC_COMPLET"])]
+    return None
+
+
+
+
+def haversine_km(lat1, lon1, lat2_arr, lon2_arr):
+    """Vectorised haversine distance (km) from a point to an array of points."""
+    import numpy as np
+    R = 6371.0
+    dlat = np.radians(lat2_arr - lat1)
+    dlon = np.radians(lon2_arr - lon1)
+    a = np.sin(dlat / 2) ** 2 + np.cos(np.radians(lat1)) * np.cos(np.radians(lat2_arr)) * np.sin(dlon / 2) ** 2
+    return R * 2 * np.arcsin(np.sqrt(a))
+
+
+# ── Search Tabs ───────────────────────────────────────────────────────────────
+search = False
+
+# Apply pending station ID from map selection before the widget renders
+if "_pending_station_id" in st.session_state:
+    st.session_state["station_id_input"] = st.session_state.pop("_pending_station_id")
+
+station_input = st.session_state.get("station_id_input", "012068")
+
+if st.session_state.pop("_auto_search", False):
+    search = True
+
+tab_sid, tab_name, tab_loc, tab_pc, tab_ll = st.tabs([
+    "Search by Station ID",
+    "Search by Station Name",
+    "Search by Location",
+    "Search by Postcode",
+    "Search by Lat / Long",
+])
+
+with tab_sid:
+    col_in, col_btn, col_pad = st.columns([1, 0.3, 2.7])
+    with col_in:
+        station_input = st.text_input(
+            "Station ID",
+            key="station_id_input",
+            placeholder="e.g. 012068",
+            label_visibility="collapsed",
+            help="Enter a BOM station number",
+        )
+    with col_btn:
+        if st.button("Search", type="primary", use_container_width=True, key="search_btn_sid"):
+            search = True
+
+with tab_name:
+    stations_df = load_stations()
+    if stations_df is not None:
+        col_nq, col_na = st.columns([3, 1])
+        with col_nq:
+            name_q = st.text_input("Station name", placeholder="e.g. Brisbane, Cairns", key="map_name_q")
+        with col_na:
+            st.write("")
+            only_active_n = st.checkbox("Active only", key="map_only_active_n")
+        if name_q.strip():
+            disp_n = stations_df.copy()
+            disp_n = disp_n[disp_n["SITE_NAME"].str.contains(name_q.strip(), case=False, na=False)]
+            if only_active_n:
+                max_yr = int(pd.to_numeric(stations_df["END_Y"], errors="coerce").max())
+                disp_n = disp_n[pd.to_numeric(disp_n["END_Y"], errors="coerce") >= max_yr - 1]
+            st.caption(f"{len(disp_n):,} stations — click to select")
+            cd = _render_station_map(disp_n, {"lat": -25, "lon": 133}, 3, "map_name")
+            if cd:
+                _show_station_card(cd)
+        else:
+            st.info("Enter a station name above to see matching stations on the map.")
+
+with tab_loc:
+    stations_df = load_stations()
+    if stations_df is not None:
+        col_lq, col_lkm, col_la = st.columns([2, 2, 1])
+        with col_lq:
+            loc_q = st.text_input(
+                "Location name",
+                placeholder="e.g. Eastwood, Brisbane CBD, Darwin",
+                key="map_loc_q",
+            )
+        with col_lkm:
+            loc_radius = st.slider(
+                "Radius (km)", min_value=5, max_value=300, value=50,
+                step=5, key="map_loc_radius",
+            )
+        with col_la:
+            st.write("")
+            only_active_loc = st.checkbox("Active only", key="map_only_active_loc")
+        disp_loc = stations_df.copy()
+        if only_active_loc:
+            max_yr = int(pd.to_numeric(stations_df["END_Y"], errors="coerce").max())
+            disp_loc = disp_loc[pd.to_numeric(disp_loc["END_Y"], errors="coerce") >= max_yr - 1]
+        loc_marker = None
+        map_c_loc, map_z_loc = {"lat": -25, "lon": 133}, 3
+        if loc_q.strip():
+            with st.spinner(f"Looking up '{loc_q}'..."):
+                geo_loc = geocode_postcode(loc_q.strip())
+            if geo_loc is None:
+                st.warning(f"Location '{loc_q}' not found. Try a more specific name.")
+            else:
+                loc_lat, loc_lon, loc_name = geo_loc
+                dists_loc = haversine_km(loc_lat, loc_lon, disp_loc["LAT"].values, disp_loc["LONG"].values)
+                disp_loc = disp_loc[dists_loc <= loc_radius].copy()
+                map_c_loc = {"lat": loc_lat, "lon": loc_lon}
+                map_z_loc = max(3, min(10, int(11 - loc_radius / 30)))
+                loc_marker = (loc_lat, loc_lon, loc_name)
+                st.info(f"📍 **{loc_name}**")
+        if loc_marker:
+            st.caption(f"{len(disp_loc):,} stations within {loc_radius} km — click to select")
+            cd = _render_station_map(disp_loc, map_c_loc, map_z_loc, "map_loc", postcode_marker=loc_marker)
+            if cd:
+                _show_station_card(cd)
+        else:
+            st.info("Enter a location name above to see nearby stations on the map.")
+
+with tab_pc:
+    stations_df = load_stations()
+    if stations_df is not None:
+        col_pc, col_km, col_pa = st.columns([2, 2, 1])
+        with col_pc:
+            postcode_q = st.text_input("Australian postcode", placeholder="e.g. 4000",
+                                       max_chars=4, key="map_postcode_q")
+        with col_km:
+            radius_km = st.slider("Radius (km)", min_value=5, max_value=300, value=50,
+                                  step=5, key="map_radius_km")
+        with col_pa:
+            st.write("")
+            only_active_p = st.checkbox("Active only", key="map_only_active_p")
+        disp_p = stations_df.copy()
+        if only_active_p:
+            max_yr = int(pd.to_numeric(stations_df["END_Y"], errors="coerce").max())
+            disp_p = disp_p[pd.to_numeric(disp_p["END_Y"], errors="coerce") >= max_yr - 1]
+        pc_marker = None
+        map_c, map_z = {"lat": -25, "lon": 133}, 3
+        if postcode_q.strip() and len(postcode_q.strip()) == 4 and postcode_q.strip().isdigit():
+            with st.spinner(f"Looking up postcode {postcode_q}..."):
+                geo = geocode_postcode(postcode_q.strip())
+            if geo is None:
+                st.warning(f"Postcode {postcode_q} not found.")
+            else:
+                pc_lat, pc_lon, pc_name = geo
+                dists = haversine_km(pc_lat, pc_lon, disp_p["LAT"].values, disp_p["LONG"].values)
+                disp_p = disp_p[dists <= radius_km].copy()
+                map_c = {"lat": pc_lat, "lon": pc_lon}
+                map_z = max(3, min(10, int(11 - radius_km / 30)))
+                pc_marker = (pc_lat, pc_lon, pc_name)
+                st.info(f"📍 **{pc_name}**")
+        if pc_marker:
+            st.caption(f"{len(disp_p):,} stations within {radius_km} km — click to select")
+            cd = _render_station_map(disp_p, map_c, map_z, "map_pc", postcode_marker=pc_marker)
+            if cd:
+                _show_station_card(cd)
+        else:
+            st.info("Enter a postcode above to see nearby stations on the map.")
+
+with tab_ll:
+    stations_df = load_stations()
+    if stations_df is not None:
+        col_lat, col_lon, col_r, col_al = st.columns([2, 2, 2, 1])
+        with col_lat:
+            ll_lat = st.number_input("Latitude", value=-33.87, min_value=-44.0,
+                                     max_value=-10.0, step=0.01, format="%.4f", key="map_ll_lat")
+        with col_lon:
+            ll_lon = st.number_input("Longitude", value=151.21, min_value=113.0,
+                                     max_value=154.0, step=0.01, format="%.4f", key="map_ll_lon")
+        with col_r:
+            ll_radius = st.slider("Radius (km)", min_value=5, max_value=300, value=50,
+                                  step=5, key="map_ll_radius")
+        with col_al:
+            st.write("")
+            only_active_l = st.checkbox("Active only", key="map_only_active_l")
+        ll_search = st.button("Search", type="primary", key="ll_search_btn")
+        if ll_search:
+            st.session_state["ll_searched"] = True
+        if st.session_state.get("ll_searched"):
+            disp_l = stations_df.copy()
+            if only_active_l:
+                max_yr = int(pd.to_numeric(stations_df["END_Y"], errors="coerce").max())
+                disp_l = disp_l[pd.to_numeric(disp_l["END_Y"], errors="coerce") >= max_yr - 1]
+            dists_l = haversine_km(ll_lat, ll_lon, disp_l["LAT"].values, disp_l["LONG"].values)
+            disp_l = disp_l[dists_l <= ll_radius].copy()
+            ll_marker = (ll_lat, ll_lon, f"{ll_lat:.4f}, {ll_lon:.4f}")
+            st.caption(f"{len(disp_l):,} stations within {ll_radius} km — click to select")
+            cd = _render_station_map(disp_l, {"lat": ll_lat, "lon": ll_lon},
+                                     max(3, min(10, int(11 - ll_radius / 30))),
+                                     "map_ll", postcode_marker=ll_marker)
+            if cd:
+                _show_station_card(cd)
+        else:
+            st.info("Enter coordinates and click Search to see nearby stations on the map.")
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────

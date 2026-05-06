@@ -3,3 +3,6 @@ requests
 pandas
 plotly
 xlsxwriter
+pyarrow
+folium
+streamlit-folium
