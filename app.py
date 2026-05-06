@@ -199,20 +199,23 @@ def load_stations():
 
 
 @st.cache_data(show_spinner=False)
-def geocode_postcode(postcode: str):
-    """Return (lat, lon, display_name) or None. Uses Nominatim via requests."""
+def geocode_postcode(query: str):
+    """Return (lat, lon, display_name) or None. Uses Photon (komoot) — no API key required."""
     resp = requests.get(
-        "https://nominatim.openstreetmap.org/search",
-        params={"q": f"{postcode}, Australia", "format": "json", "limit": 1, "countrycodes": "au"},
-        headers={"User-Agent": "BOM-Rainfall-App/1.0 (github.com/tszyilin/BOM_Rainfall_Extraction)"},
+        "https://photon.komoot.io/api/",
+        params={"q": f"{query} Australia", "limit": 5, "lang": "en"},
+        headers={"User-Agent": "BOM-Rainfall-App/1.0"},
         timeout=10,
     )
     resp.raise_for_status()
-    results = resp.json()
-    if not results:
-        return None
-    r = results[0]
-    return float(r["lat"]), float(r["lon"]), r.get("display_name", postcode)
+    for feat in resp.json().get("features", []):
+        props = feat.get("properties", {})
+        if props.get("country_code", "").lower() == "au":
+            lon, lat = feat["geometry"]["coordinates"]
+            parts = [props.get(k) for k in ("name", "city", "county", "state") if props.get(k)]
+            parts.append("Australia")
+            return lat, lon, ", ".join(dict.fromkeys(parts))
+    return None
 
 
 def _show_station_card(cd):
@@ -422,14 +425,14 @@ with tab_loc:
         loc_marker = None
         map_c_loc, map_z_loc = {"lat": -25, "lon": 133}, 3
         if loc_q.strip():
+            geo_loc = None
             try:
                 with st.spinner(f"Looking up '{loc_q}'..."):
                     geo_loc = geocode_postcode(loc_q.strip())
+                if geo_loc is None:
+                    st.warning(f"Location '{loc_q}' not found. Try a more specific name.")
             except Exception:
-                st.warning("Location lookup failed — the geocoding service may be temporarily unavailable. Try again shortly.")
-                geo_loc = None
-            if geo_loc is None:
-                st.warning(f"Location '{loc_q}' not found. Try a more specific name.")
+                st.warning("Location lookup failed — geocoding service temporarily unavailable. Try again shortly.")
             else:
                 loc_lat, loc_lon, loc_name = geo_loc
                 dists_loc = haversine_km(loc_lat, loc_lon, disp_loc["LAT"].values, disp_loc["LONG"].values)
@@ -466,14 +469,14 @@ with tab_pc:
         pc_marker = None
         map_c, map_z = {"lat": -25, "lon": 133}, 3
         if postcode_q.strip() and len(postcode_q.strip()) == 4 and postcode_q.strip().isdigit():
+            geo = None
             try:
                 with st.spinner(f"Looking up postcode {postcode_q}..."):
                     geo = geocode_postcode(postcode_q.strip())
+                if geo is None:
+                    st.warning(f"Postcode {postcode_q} not found.")
             except Exception:
-                st.warning("Postcode lookup failed — the geocoding service may be temporarily unavailable. Try again shortly.")
-                geo = None
-            if geo is None:
-                st.warning(f"Postcode {postcode_q} not found.")
+                st.warning("Postcode lookup failed — geocoding service temporarily unavailable. Try again shortly.")
             else:
                 pc_lat, pc_lon, pc_name = geo
                 dists = haversine_km(pc_lat, pc_lon, disp_p["LAT"].values, disp_p["LONG"].values)
