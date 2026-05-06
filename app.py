@@ -198,9 +198,32 @@ def load_stations():
         return None
 
 
+@st.cache_data(show_spinner=False, ttl=86400)
+def _postcode_db():
+    """Download Australian postcode centroids once per day and cache in memory."""
+    url = ("https://raw.githubusercontent.com/matthewproctor/"
+           "australianpostcodes/master/australian_postcodes.csv")
+    df = pd.read_csv(url, usecols=["postcode", "locality", "state", "lat", "long"],
+                     dtype={"postcode": str})
+    df = df.dropna(subset=["lat", "long"])
+    df["postcode"] = df["postcode"].str.zfill(4)
+    df = df.drop_duplicates(subset="postcode", keep="first")
+    return df
+
+
+def lookup_postcode(postcode: str):
+    """Return (lat, lon, display_name) from local DB or None."""
+    db = _postcode_db()
+    row = db[db["postcode"] == postcode.zfill(4)]
+    if row.empty:
+        return None
+    r = row.iloc[0]
+    return float(r["lat"]), float(r["long"]), f"{r['locality'].title()}, {r['state']}, Australia"
+
+
 @st.cache_data(show_spinner=False)
-def geocode_postcode(query: str):
-    """Return (lat, lon, display_name) or None. Uses Photon (komoot) — no API key required."""
+def geocode_location(query: str):
+    """Return (lat, lon, display_name) or None for a place name. Uses Photon (komoot)."""
     resp = requests.get(
         "https://photon.komoot.io/api/",
         params={"q": f"{query} Australia", "limit": 5, "lang": "en"},
@@ -427,7 +450,7 @@ with tab_loc:
         if loc_q.strip():
             try:
                 with st.spinner(f"Looking up '{loc_q}'..."):
-                    geo_loc = geocode_postcode(loc_q.strip())
+                    geo_loc = geocode_location(loc_q.strip())
                 if geo_loc is None:
                     st.warning(f"Location '{loc_q}' not found. Try a more specific name.")
                 else:
@@ -470,7 +493,7 @@ with tab_pc:
         if postcode_q.strip() and len(postcode_q.strip()) == 4 and postcode_q.strip().isdigit():
             try:
                 with st.spinner(f"Looking up postcode {postcode_q}..."):
-                    geo = geocode_postcode(postcode_q.strip())
+                    geo = lookup_postcode(postcode_q.strip())
                 if geo is None:
                     st.warning(f"Postcode {postcode_q} not found.")
                 else:
