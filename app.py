@@ -401,18 +401,19 @@ tab_sid, tab_name, tab_loc, tab_pc, tab_ll = st.tabs([
 ])
 
 with tab_sid:
-    col_in, col_btn, col_pad = st.columns([1, 0.3, 2.7])
-    with col_in:
-        station_input = st.text_input(
-            "Station ID",
-            key="station_id_input",
-            placeholder="e.g. 012068",
-            label_visibility="collapsed",
-            help="Enter a BOM station number",
-        )
-    with col_btn:
-        if st.button("Search", type="primary", use_container_width=True, key="search_btn_sid"):
-            search = True
+    with st.form("station_id_form"):
+        col_in, col_btn, col_pad = st.columns([1, 0.3, 2.7])
+        with col_in:
+            station_input = st.text_input(
+                "Station ID",
+                key="station_id_input",
+                placeholder="e.g. 012068",
+                label_visibility="collapsed",
+                help="Enter a BOM station number",
+            )
+        with col_btn:
+            if st.form_submit_button("Search", type="primary", use_container_width=True):
+                search = True
 
 with tab_name:
     stations_df = load_stations()
@@ -441,21 +442,25 @@ with tab_name:
 with tab_loc:
     stations_df = load_stations()
     if stations_df is not None:
-        col_lq, col_lkm, col_la = st.columns([2, 2, 1])
-        with col_lq:
-            loc_q = st.text_input(
-                "Location name",
-                placeholder="e.g. Eastwood, Brisbane CBD, Darwin",
-                key="map_loc_q",
-            )
-        with col_lkm:
-            loc_radius = st.slider(
-                "Radius (km)", min_value=5, max_value=300, value=50,
-                step=5, key="map_loc_radius",
-            )
-        with col_la:
-            st.write("")
-            only_active_loc = st.checkbox("Active only", key="map_only_active_loc")
+        with st.form("loc_search_form"):
+            col_lq, col_lkm, col_la, col_lb = st.columns([2, 2, 1, 0.6])
+            with col_lq:
+                loc_q = st.text_input(
+                    "Location name",
+                    placeholder="e.g. Eastwood, Brisbane CBD, Darwin",
+                    key="map_loc_q",
+                )
+            with col_lkm:
+                loc_radius = st.slider(
+                    "Radius (km)", min_value=5, max_value=300, value=50,
+                    step=5, key="map_loc_radius",
+                )
+            with col_la:
+                st.write("")
+                only_active_loc = st.checkbox("Active only", key="map_only_active_loc")
+            with col_lb:
+                st.write("")
+                st.form_submit_button("Search", type="primary", use_container_width=True)
         disp_loc = stations_df.copy()
         if only_active_loc:
             max_yr = int(pd.to_numeric(stations_df["END_Y"], errors="coerce").max())
