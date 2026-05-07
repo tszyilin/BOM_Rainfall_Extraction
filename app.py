@@ -271,8 +271,7 @@ def _show_station_card(cd):
         st.info(
             f"**{sel_name}**  \n"
             f"Station ID: `{sel_id}` &nbsp;|&nbsp; "
-            f"Opens: {sel_start} &nbsp;|&nbsp; "
-            f"Completeness (est.): {pct_label}"
+            f"Opens: {sel_start}"
         )
     with c2:
         st.write("")
