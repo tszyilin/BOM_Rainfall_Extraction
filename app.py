@@ -882,6 +882,7 @@ if "df" in st.session_state:
                     data=dist_all.to_csv(index=False).encode(),
                     file_name=f"bom_rainfall_{stn_id}_distributed_all.csv",
                     mime="text/csv",
+                    type="primary",
                     use_container_width=True,
                 )
     else:
