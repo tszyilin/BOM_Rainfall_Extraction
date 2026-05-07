@@ -845,7 +845,35 @@ if "df" in st.session_state:
         with tab_raw:
             st.dataframe(df, use_container_width=True)
         with tab_dist:
-            st.dataframe(base, use_container_width=True)
+            base_dates = pd.to_datetime(base["Date"], errors="coerce").dropna()
+            d_min = base_dates.min().date()
+            d_max = base_dates.max().date()
+            col_ds, col_de, col_dl = st.columns([1, 1, 1])
+            with col_ds:
+                date_start = st.date_input("From", value=d_min, min_value=d_min, max_value=d_max,
+                                           key="dist_date_start")
+            with col_de:
+                date_end = st.date_input("To", value=d_max, min_value=d_min, max_value=d_max,
+                                         key="dist_date_end")
+            with col_dl:
+                st.write("")
+                st.write("")
+            dist_filtered = base.copy()
+            dist_filtered["Date"] = pd.to_datetime(dist_filtered["Date"], errors="coerce")
+            if date_start and date_end and date_start <= date_end:
+                dist_filtered = dist_filtered[
+                    (dist_filtered["Date"].dt.date >= date_start) &
+                    (dist_filtered["Date"].dt.date <= date_end)
+                ]
+            st.dataframe(dist_filtered, use_container_width=True)
+            with col_dl:
+                st.download_button(
+                    label="Download filtered CSV",
+                    data=dist_filtered.to_csv(index=False).encode(),
+                    file_name=f"bom_rainfall_{stn_id}_distributed_{date_start}_{date_end}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
     else:
         st.dataframe(df, use_container_width=True)
 
