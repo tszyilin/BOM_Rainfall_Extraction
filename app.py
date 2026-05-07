@@ -327,8 +327,7 @@ def _render_station_map(disp, center, zoom, map_key, postcode_marker=None):
             color = _completeness_color(row["PC_COMPLET"])
             popup_html = (
                 f"<b>{row['SITE_ID_STR']}</b><br>"
-                f"{row['SITE_NAME']}<br>"
-                f"{row['START_Y']}–{row['END_Y']}"
+                f"{row['SITE_NAME']}"
             )
             folium.CircleMarker(
                 location=[row["LAT"], row["LONG"]],
@@ -336,7 +335,7 @@ def _render_station_map(disp, center, zoom, map_key, postcode_marker=None):
                 color="white", weight=1,
                 fill=True, fill_color=color, fill_opacity=0.9,
                 popup=folium.Popup(popup_html, max_width=250),
-                tooltip=f"{row['SITE_ID_STR']} | {row['SITE_NAME']} | {row['START_Y']}–{row['END_Y']}",
+                tooltip=f"{row['SITE_ID_STR']} | {row['SITE_NAME']}",
             ).add_to(mc)
         selection_enabled = True
 
