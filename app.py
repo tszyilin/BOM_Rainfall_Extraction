@@ -152,7 +152,12 @@ def get_download_url_and_html(session, station_id, debug=False):
         f"?p_display_type=dailyZippedDataFile&p_stn_num={station_id}"
         f"&p_c={p_c}&p_nccObsCode={OBS_CODE}&p_startYear={start_year}"
     )
-    return download_url, resp.text
+    view_url = (
+        f"https://www.bom.gov.au/jsp/ncc/cdio/weatherData/av"
+        f"?p_nccObsCode={OBS_CODE}&p_display_type=dailyDataFile"
+        f"&p_startYear=&p_c={p_c}&p_stn_num={station_id}"
+    )
+    return download_url, resp.text, view_url
 
 
 @st.cache_data(show_spinner=False)
@@ -160,8 +165,9 @@ def fetch_rainfall(station_id: str, debug: bool = False):
     station_id = station_id.strip().zfill(6)
     session = make_session()
 
-    download_url, page_html = get_download_url_and_html(session, station_id, debug=debug)
+    download_url, page_html, view_url = get_download_url_and_html(session, station_id, debug=debug)
     station_info = parse_station_info(page_html, debug=debug)
+    station_info["bom_view_url"] = view_url
 
     if debug:
         st.info(f"Download URL: `{download_url}`")
@@ -816,11 +822,11 @@ if "df" in st.session_state:
 
     col_info, col_map = st.columns([1, 1])
 
-    bom_station_url = (
+    bom_station_url = info.get("bom_view_url", (
         f"http://www.bom.gov.au/climate/data/"
         f"?p_nccObsCode=136&p_display_type=dailyDataFile"
         f"&p_startYear=&p_c=&p_stn_num={stn_id}"
-    )
+    ))
     with col_info:
         st.markdown(f"""
 <div style="background:var(--secondary-background-color);border:1px solid var(--border-color, #dee2e6);border-radius:10px;padding:20px 28px;height:100%">
