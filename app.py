@@ -848,16 +848,15 @@ if "df" in st.session_state:
             base_dates = pd.to_datetime(base["Date"], errors="coerce").dropna()
             d_min = base_dates.min().date()
             d_max = base_dates.max().date()
-            col_ds, col_de, col_dl = st.columns([1, 1, 1])
+            col_ds, col_de, col_fmt = st.columns([1, 1, 1])
             with col_ds:
                 date_start = st.date_input("From", value=d_min, min_value=d_min, max_value=d_max,
                                            key="dist_date_start")
             with col_de:
                 date_end = st.date_input("To", value=d_max, min_value=d_min, max_value=d_max,
                                          key="dist_date_end")
-            with col_dl:
-                st.write("")
-                st.write("")
+            with col_fmt:
+                dl_fmt = st.radio("Format", ["CSV", "XLSX"], horizontal=True, key="dist_dl_fmt")
             dist_all = base.copy()
             dist_all["Date"] = pd.to_datetime(dist_all["Date"], errors="coerce")
             dist_filtered = dist_all.copy()
@@ -867,21 +866,36 @@ if "df" in st.session_state:
                     (dist_all["Date"].dt.date <= date_end)
                 ]
             st.dataframe(dist_filtered, use_container_width=True)
+
+            def _to_bytes(frame, fmt):
+                if fmt == "XLSX":
+                    buf = io.BytesIO()
+                    with pd.ExcelWriter(buf, engine="xlsxwriter") as w:
+                        frame.to_excel(w, index=False, sheet_name="Distributed Data")
+                    buf.seek(0)
+                    return buf.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                return frame.to_csv(index=False).encode(), "text/csv"
+
+            ext = dl_fmt.lower()
+            mime_type = ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                         if dl_fmt == "XLSX" else "text/csv")
             col_dl1, col_dl2 = st.columns(2)
             with col_dl1:
+                filt_data, filt_mime = _to_bytes(dist_filtered, dl_fmt)
                 st.download_button(
-                    label="Download filtered CSV",
-                    data=dist_filtered.to_csv(index=False).encode(),
-                    file_name=f"bom_rainfall_{stn_id}_distributed_{date_start}_{date_end}.csv",
-                    mime="text/csv",
+                    label=f"Download filtered {dl_fmt}",
+                    data=filt_data,
+                    file_name=f"bom_rainfall_{stn_id}_distributed_{date_start}_{date_end}.{ext}",
+                    mime=filt_mime,
                     use_container_width=True,
                 )
             with col_dl2:
+                all_data, all_mime = _to_bytes(dist_all, dl_fmt)
                 st.download_button(
-                    label="Download all data CSV",
-                    data=dist_all.to_csv(index=False).encode(),
-                    file_name=f"bom_rainfall_{stn_id}_distributed_all.csv",
-                    mime="text/csv",
+                    label=f"Download all data {dl_fmt}",
+                    data=all_data,
+                    file_name=f"bom_rainfall_{stn_id}_distributed_all.{ext}",
+                    mime=all_mime,
                     type="primary",
                     use_container_width=True,
                 )
