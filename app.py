@@ -816,10 +816,15 @@ if "df" in st.session_state:
 
     col_info, col_map = st.columns([1, 1])
 
+    bom_station_url = (
+        f"http://www.bom.gov.au/climate/data/"
+        f"?p_nccObsCode=136&p_display_type=dailyDataFile"
+        f"&p_startYear=&p_c=&p_stn_num={stn_id}"
+    )
     with col_info:
         st.markdown(f"""
 <div style="background:var(--secondary-background-color);border:1px solid var(--border-color, #dee2e6);border-radius:10px;padding:20px 28px;height:100%">
-  <div style="font-size:1.4em;font-weight:700;margin-bottom:4px;color:var(--text-color)">{info['name']} &nbsp; {badge}</div>
+  <div style="font-size:1.4em;font-weight:700;margin-bottom:4px;color:var(--text-color)">{info['name']} &nbsp; {badge} &nbsp; <a href="{bom_station_url}" target="_blank" style="font-size:0.6em;font-weight:400;color:#1a73e8;text-decoration:none">View on BOM ↗</a></div>
   <div style="color:var(--text-color);opacity:0.6;font-size:0.95em;margin-bottom:14px">Station {info['number']}</div>
   <div style="display:flex;gap:32px;flex-wrap:wrap;font-size:0.95em">
     <div><span style="color:var(--text-color);opacity:0.6">Latitude</span><br><b style="color:var(--text-color)">{info['lat']}</b></div>
