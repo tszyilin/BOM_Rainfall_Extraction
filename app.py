@@ -221,7 +221,6 @@ def lookup_postcode(postcode: str):
     return float(r["lat"]), float(r["long"]), f"{r['locality'].title()}, {r['state']}, Australia"
 
 
-@st.cache_data(show_spinner=False)
 def geocode_location(query: str):
     """Return (lat, lon, display_name) or None for a place/suburb name.
     Tries the local postcode DB locality column first (no API), then Photon as fallback."""
