@@ -440,15 +440,10 @@ with tab_name:
             st.info("Enter a station name above to see matching stations on the map.")
 
 with tab_loc:
+    from streamlit_searchbox import st_searchbox
     stations_df = load_stations()
     if stations_df is not None:
-        col_lq, col_lkm, col_la = st.columns([2, 2, 1])
-        with col_lq:
-            loc_q = st.text_input(
-                "Location name",
-                placeholder="e.g. Eastwood, Brisbane CBD, Darwin",
-                key="map_loc_q",
-            )
+        col_lkm, col_la = st.columns([3, 1])
         with col_lkm:
             loc_radius = st.slider(
                 "Radius (km)", min_value=5, max_value=300, value=50,
@@ -457,40 +452,62 @@ with tab_loc:
         with col_la:
             st.write("")
             only_active_loc = st.checkbox("Active only", key="map_only_active_loc")
+
+        def _search_localities(query: str):
+            if not query or len(query.strip()) < 2:
+                return []
+            try:
+                db = _postcode_db()
+                q = query.strip().lower()
+                mask = db["locality"].str.lower().str.contains(q, regex=False, na=False)
+                matches = db[mask].drop_duplicates(subset=["locality", "state"]).head(20)
+                return [
+                    f"{r['locality'].title()}, {r['state']} {r['postcode']}"
+                    for _, r in matches.iterrows()
+                ]
+            except Exception:
+                return []
+
+        selected = st_searchbox(
+            _search_localities,
+            placeholder="e.g. Eastwood, Brisbane CBD, Darwin",
+            label="Location name",
+            key="loc_searchbox",
+        )
+
         disp_loc = stations_df.copy()
         if only_active_loc:
             max_yr = int(pd.to_numeric(stations_df["END_Y"], errors="coerce").max())
             disp_loc = disp_loc[pd.to_numeric(disp_loc["END_Y"], errors="coerce") >= max_yr - 1]
         loc_marker = None
         map_c_loc, map_z_loc = {"lat": -25, "lon": 133}, 3
-        if loc_q.strip():
-            suggestions = []
+        if selected:
             try:
                 db = _postcode_db()
-                q = loc_q.strip().lower()
-                mask = db["locality"].str.lower().str.contains(q, regex=False, na=False)
-                matches = db[mask].drop_duplicates(subset=["locality", "state"]).head(20)
-                suggestions = [
-                    (f"{r['locality'].title()}, {r['state']} {r['postcode']}", float(r["lat"]), float(r["long"]))
-                    for _, r in matches.iterrows()
+                # Parse "Locality, STATE POSTCODE" back to coords
+                parts = selected.rsplit(",", 1)
+                locality_part = parts[0].strip()
+                state_pc = parts[1].strip().split() if len(parts) > 1 else []
+                state = state_pc[0] if state_pc else ""
+                postcode = state_pc[1] if len(state_pc) > 1 else ""
+                row = db[
+                    (db["locality"].str.lower() == locality_part.lower()) &
+                    (db["state"].str.upper() == state.upper()) &
+                    (db["postcode"] == postcode)
                 ]
-            except Exception:
-                pass
-            if not suggestions:
-                st.warning(f"No locations found matching '{loc_q}'.")
-            else:
-                labels = [s[0] for s in suggestions]
-                coords = {s[0]: (s[1], s[2]) for s in suggestions}
-                selected = st.selectbox("Select location", labels, key="loc_select")
-                if selected and selected in coords:
-                    loc_lat, loc_lon = coords[selected]
-                    loc_name = f"{selected}, Australia"
+                if row.empty:
+                    row = db[db["locality"].str.lower() == locality_part.lower()]
+                if not row.empty:
+                    r = row.iloc[0]
+                    loc_lat, loc_lon = float(r["lat"]), float(r["long"])
                     dists_loc = haversine_km(loc_lat, loc_lon, disp_loc["LAT"].values, disp_loc["LONG"].values)
                     disp_loc = disp_loc[dists_loc <= loc_radius].copy()
                     map_c_loc = {"lat": loc_lat, "lon": loc_lon}
                     map_z_loc = max(3, min(10, int(11 - loc_radius / 30)))
-                    loc_marker = (loc_lat, loc_lon, loc_name)
+                    loc_marker = (loc_lat, loc_lon, f"{selected}, Australia")
                     st.info(f"📍 **{selected}**")
+            except Exception:
+                st.warning("Could not resolve selected location.")
         if loc_marker:
             if disp_loc.empty:
                 st.warning(f"No stations within {loc_radius} km of the selected location.")
@@ -499,8 +516,8 @@ with tab_loc:
                 if cd:
                     _show_station_card(cd)
         else:
-            if not loc_q.strip():
-                st.info("Enter a location name above to see nearby stations on the map.")
+            if not selected:
+                st.info("Start typing a location name above to search.")
 
 with tab_pc:
     stations_df = load_stations()

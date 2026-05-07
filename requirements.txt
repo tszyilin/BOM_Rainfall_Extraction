@@ -6,3 +6,4 @@ xlsxwriter
 pyarrow
 folium
 streamlit-folium
+streamlit-searchbox
