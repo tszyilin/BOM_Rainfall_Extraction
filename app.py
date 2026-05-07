@@ -463,28 +463,43 @@ with tab_loc:
         loc_marker = None
         map_c_loc, map_z_loc = {"lat": -25, "lon": 133}, 3
         if loc_q.strip():
+            suggestions = []
             try:
-                with st.spinner(f"Looking up '{loc_q}'..."):
-                    geo_loc = geocode_location(loc_q.strip())
-                if geo_loc is None:
-                    st.warning(f"Location '{loc_q}' not found. Try a more specific name.")
-                else:
-                    loc_lat, loc_lon, loc_name = geo_loc
+                db = _postcode_db()
+                q = loc_q.strip().lower()
+                mask = db["locality"].str.lower().str.contains(q, regex=False, na=False)
+                matches = db[mask].drop_duplicates(subset=["locality", "state"]).head(20)
+                suggestions = [
+                    (f"{r['locality'].title()}, {r['state']}", float(r["lat"]), float(r["long"]))
+                    for _, r in matches.iterrows()
+                ]
+            except Exception:
+                pass
+            if not suggestions:
+                st.warning(f"No locations found matching '{loc_q}'.")
+            else:
+                labels = [s[0] for s in suggestions]
+                coords = {s[0]: (s[1], s[2]) for s in suggestions}
+                selected = st.selectbox("Select location", labels, key="loc_select")
+                if selected and selected in coords:
+                    loc_lat, loc_lon = coords[selected]
+                    loc_name = f"{selected}, Australia"
                     dists_loc = haversine_km(loc_lat, loc_lon, disp_loc["LAT"].values, disp_loc["LONG"].values)
                     disp_loc = disp_loc[dists_loc <= loc_radius].copy()
                     map_c_loc = {"lat": loc_lat, "lon": loc_lon}
                     map_z_loc = max(3, min(10, int(11 - loc_radius / 30)))
                     loc_marker = (loc_lat, loc_lon, loc_name)
-                    st.info(f"📍 **{loc_name}**")
-            except Exception:
-                st.warning("Location lookup failed — geocoding service temporarily unavailable. Try again shortly.")
+                    st.info(f"📍 **{selected}**")
         if loc_marker:
-            st.caption(f"{len(disp_loc):,} stations within {loc_radius} km — click to select")
-            cd = _render_station_map(disp_loc, map_c_loc, map_z_loc, "map_loc", postcode_marker=loc_marker)
-            if cd:
-                _show_station_card(cd)
+            if disp_loc.empty:
+                st.warning(f"No stations within {loc_radius} km of the selected location.")
+            else:
+                cd = _render_station_map(disp_loc, map_c_loc, map_z_loc, "map_loc", postcode_marker=loc_marker)
+                if cd:
+                    _show_station_card(cd)
         else:
-            st.info("Enter a location name above to see nearby stations on the map.")
+            if not loc_q.strip():
+                st.info("Enter a location name above to see nearby stations on the map.")
 
 with tab_pc:
     stations_df = load_stations()
