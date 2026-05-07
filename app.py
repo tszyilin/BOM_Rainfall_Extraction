@@ -858,19 +858,29 @@ if "df" in st.session_state:
             with col_dl:
                 st.write("")
                 st.write("")
-            dist_filtered = base.copy()
-            dist_filtered["Date"] = pd.to_datetime(dist_filtered["Date"], errors="coerce")
+            dist_all = base.copy()
+            dist_all["Date"] = pd.to_datetime(dist_all["Date"], errors="coerce")
+            dist_filtered = dist_all.copy()
             if date_start and date_end and date_start <= date_end:
-                dist_filtered = dist_filtered[
-                    (dist_filtered["Date"].dt.date >= date_start) &
-                    (dist_filtered["Date"].dt.date <= date_end)
+                dist_filtered = dist_all[
+                    (dist_all["Date"].dt.date >= date_start) &
+                    (dist_all["Date"].dt.date <= date_end)
                 ]
             st.dataframe(dist_filtered, use_container_width=True)
-            with col_dl:
+            col_dl1, col_dl2 = st.columns(2)
+            with col_dl1:
                 st.download_button(
                     label="Download filtered CSV",
                     data=dist_filtered.to_csv(index=False).encode(),
                     file_name=f"bom_rainfall_{stn_id}_distributed_{date_start}_{date_end}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+            with col_dl2:
+                st.download_button(
+                    label="Download all data CSV",
+                    data=dist_all.to_csv(index=False).encode(),
+                    file_name=f"bom_rainfall_{stn_id}_distributed_all.csv",
                     mime="text/csv",
                     use_container_width=True,
                 )
