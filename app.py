@@ -266,19 +266,14 @@ def _show_station_card(cd):
     sel_start = str(cd[2]).strip() if len(cd) > 2 else "?"
     sel_end   = str(cd[3]).strip() if len(cd) > 3 else "?"
     sel_pct   = str(cd[4]).strip() if len(cd) > 4 else "?"
-    try:
-        total_days = (int(sel_end) - int(sel_start) + 1) * 365
-        recorded   = round(total_days * float(sel_pct) / 100)
-        pct_label  = f"{sel_pct}% ({recorded:,} / {total_days:,} days recorded)"
-    except Exception:
-        pct_label  = f"{sel_pct}%"
+    pct_label = f"{sel_pct}%" if sel_pct != "?" else "?"
     c1, c2, c3 = st.columns([3, 0.7, 1.3])
     with c1:
         st.info(
             f"**{sel_name}**  \n"
             f"Station ID: `{sel_id}` &nbsp;|&nbsp; "
-            f"Record: {sel_start}–{sel_end} &nbsp;|&nbsp; "
-            f"Completeness: {pct_label}"
+            f"Opens: {sel_start} &nbsp;|&nbsp; "
+            f"Completeness (est.): {pct_label}"
         )
     with c2:
         st.write("")
