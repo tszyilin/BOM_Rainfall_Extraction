@@ -207,7 +207,7 @@ def _postcode_db():
                      dtype={"postcode": str})
     df = df.dropna(subset=["lat", "long"])
     df["postcode"] = df["postcode"].str.zfill(4)
-    df = df.drop_duplicates(subset="postcode", keep="first")
+    df["locality"] = df["locality"].fillna("").str.strip()
     return df
 
 
