@@ -442,25 +442,21 @@ with tab_name:
 with tab_loc:
     stations_df = load_stations()
     if stations_df is not None:
-        with st.form("loc_search_form"):
-            col_lq, col_lkm, col_la, col_lb = st.columns([2, 2, 1, 0.6])
-            with col_lq:
-                loc_q = st.text_input(
-                    "Location name",
-                    placeholder="e.g. Eastwood, Brisbane CBD, Darwin",
-                    key="map_loc_q",
-                )
-            with col_lkm:
-                loc_radius = st.slider(
-                    "Radius (km)", min_value=5, max_value=300, value=50,
-                    step=5, key="map_loc_radius",
-                )
-            with col_la:
-                st.write("")
-                only_active_loc = st.checkbox("Active only", key="map_only_active_loc")
-            with col_lb:
-                st.write("")
-                st.form_submit_button("Search", type="primary", use_container_width=True)
+        col_lq, col_lkm, col_la = st.columns([2, 2, 1])
+        with col_lq:
+            loc_q = st.text_input(
+                "Location name",
+                placeholder="e.g. Eastwood, Brisbane CBD, Darwin",
+                key="map_loc_q",
+            )
+        with col_lkm:
+            loc_radius = st.slider(
+                "Radius (km)", min_value=5, max_value=300, value=50,
+                step=5, key="map_loc_radius",
+            )
+        with col_la:
+            st.write("")
+            only_active_loc = st.checkbox("Active only", key="map_only_active_loc")
         disp_loc = stations_df.copy()
         if only_active_loc:
             max_yr = int(pd.to_numeric(stations_df["END_Y"], errors="coerce").max())
@@ -485,10 +481,7 @@ with tab_loc:
             else:
                 labels = [s[0] for s in suggestions]
                 coords = {s[0]: (s[1], s[2]) for s in suggestions}
-                if len(labels) == 1:
-                    selected = labels[0]
-                else:
-                    selected = st.selectbox("Select location", labels, key="loc_select")
+                selected = st.selectbox("Select location", labels, key="loc_select")
                 if selected and selected in coords:
                     loc_lat, loc_lon = coords[selected]
                     loc_name = f"{selected}, Australia"
