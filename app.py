@@ -266,12 +266,18 @@ def _show_station_card(cd):
     sel_end   = str(cd[3]).strip() if len(cd) > 3 else "?"
     sel_pct   = str(cd[4]).strip() if len(cd) > 4 else "?"
     pct_label = f"{sel_pct}%" if sel_pct != "?" else "?"
+    bom_url = (
+        f"http://www.bom.gov.au/climate/data/"
+        f"?p_nccObsCode=136&p_display_type=dailyDataFile"
+        f"&p_startYear=&p_c=&p_stn_num={sel_id}"
+    )
     c1, c2, c3 = st.columns([3, 0.7, 1.3])
     with c1:
         st.info(
             f"**{sel_name}**  \n"
             f"Station ID: `{sel_id}` &nbsp;|&nbsp; "
-            f"Opens: {sel_start}"
+            f"Opens: {sel_start} &nbsp;|&nbsp; "
+            f"[View on BOM ↗]({bom_url})"
         )
     with c2:
         st.write("")
