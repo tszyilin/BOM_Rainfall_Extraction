@@ -470,7 +470,7 @@ with tab_loc:
                 mask = db["locality"].str.lower().str.contains(q, regex=False, na=False)
                 matches = db[mask].drop_duplicates(subset=["locality", "state"]).head(20)
                 suggestions = [
-                    (f"{r['locality'].title()}, {r['state']}", float(r["lat"]), float(r["long"]))
+                    (f"{r['locality'].title()}, {r['state']} {r['postcode']}", float(r["lat"]), float(r["long"]))
                     for _, r in matches.iterrows()
                 ]
             except Exception:
@@ -480,7 +480,10 @@ with tab_loc:
             else:
                 labels = [s[0] for s in suggestions]
                 coords = {s[0]: (s[1], s[2]) for s in suggestions}
-                selected = st.selectbox("Select location", labels, key="loc_select")
+                if len(labels) == 1:
+                    selected = labels[0]
+                else:
+                    selected = st.selectbox("Select location", labels, key="loc_select")
                 if selected and selected in coords:
                     loc_lat, loc_lon = coords[selected]
                     loc_name = f"{selected}, Australia"
