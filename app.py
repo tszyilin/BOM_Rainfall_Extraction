@@ -910,7 +910,7 @@ if "df" in st.session_state:
             raw_dates = pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce").dropna()
             r_min = raw_dates.min().date()
             r_max = raw_dates.max().date()
-            col_rs, col_re, col_rfmt, col_rdc = st.columns([1, 1, 1, 1])
+            col_rs, col_re, col_rfmt = st.columns([1, 1, 1])
             with col_rs:
                 raw_date_start = st.date_input("From", value=r_min, min_value=r_min, max_value=r_max,
                                                key="raw_date_start")
@@ -919,8 +919,6 @@ if "df" in st.session_state:
                                              key="raw_date_end")
             with col_rfmt:
                 raw_dl_fmt = st.radio("Format", ["CSV", "XLSX"], horizontal=True, key="raw_dl_fmt")
-            with col_rdc:
-                st.write("")
                 add_date_col = st.checkbox("Create date column", value=True, key="raw_add_date")
             df_raw_dates = pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce")
             raw_filtered = df[(df_raw_dates.dt.date >= raw_date_start) &
@@ -969,7 +967,7 @@ if "df" in st.session_state:
             base_dates = pd.to_datetime(base["Date"], errors="coerce").dropna()
             d_min = base_dates.min().date()
             d_max = base_dates.max().date()
-            col_ds, col_de, col_fmt, col_ddc = st.columns([1, 1, 1, 1])
+            col_ds, col_de, col_fmt = st.columns([1, 1, 1])
             with col_ds:
                 date_start = st.date_input("From", value=d_min, min_value=d_min, max_value=d_max,
                                            key="dist_date_start")
@@ -978,17 +976,14 @@ if "df" in st.session_state:
                                          key="dist_date_end")
             with col_fmt:
                 dl_fmt = st.radio("Format", ["CSV", "XLSX"], horizontal=True, key="dist_dl_fmt")
-            with col_ddc:
-                st.write("")
                 dist_add_date = st.checkbox("Create date column", value=True, key="dist_add_date")
             dist_all = base.copy()
-            dist_all["Date"] = pd.to_datetime(dist_all["Date"], errors="coerce")
+            dist_all["Date"] = pd.to_datetime(dist_all["Date"], errors="coerce").dt.strftime("%d/%m/%Y")
             dist_filtered = dist_all.copy()
             if date_start and date_end and date_start <= date_end:
-                dist_filtered = dist_all[
-                    (dist_all["Date"].dt.date >= date_start) &
-                    (dist_all["Date"].dt.date <= date_end)
-                ]
+                base_dt = pd.to_datetime(base["Date"], errors="coerce")
+                mask = (base_dt.dt.date >= date_start) & (base_dt.dt.date <= date_end)
+                dist_filtered = dist_all[mask.values]
             def _reorder_date(frame):
                 if "Date" not in frame.columns:
                     return frame
