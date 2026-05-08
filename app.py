@@ -944,7 +944,7 @@ if "df" in st.session_state:
             with col_rdl1:
                 filt_data, filt_mime = _raw_to_bytes(raw_filtered, raw_dl_fmt)
                 st.download_button(
-                    label=f"Download {raw_date_start.strftime('%d/%m/%y')} to {raw_date_end.strftime('%d/%m/%y')} {raw_dl_fmt}",
+                    label=f"Download {raw_date_start.strftime('%d/%m/%Y')} to {raw_date_end.strftime('%d/%m/%Y')} {raw_dl_fmt}",
                     data=filt_data,
                     file_name=f"bom_rainfall_{stn_id}_raw_{raw_date_start}_{raw_date_end}.{raw_ext}",
                     mime=filt_mime,
@@ -1022,7 +1022,7 @@ if "df" in st.session_state:
             with col_dl1:
                 filt_data, filt_mime = _to_bytes(preview_filtered, dl_fmt)
                 st.download_button(
-                    label=f"Download {date_start.strftime('%d/%m/%y')} to {date_end.strftime('%d/%m/%y')} {dl_fmt}",
+                    label=f"Download {date_start.strftime('%d/%m/%Y')} to {date_end.strftime('%d/%m/%Y')} {dl_fmt}",
                     data=filt_data,
                     file_name=f"bom_rainfall_{stn_id}_distributed_{date_start}_{date_end}.{ext}",
                     mime=filt_mime,
