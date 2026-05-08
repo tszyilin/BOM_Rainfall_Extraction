@@ -797,14 +797,32 @@ if "df" in st.session_state:
         base = annual = pivot = miss_pivot_before = miss_pivot_after = None
 
     # ── Sidebar downloads ─────────────────────────────────────────────────────
+    avail_years = sorted(pd.to_numeric(df["Year"], errors="coerce").dropna().astype(int).unique().tolist())
     with st.sidebar:
         st.divider()
         st.subheader("Download")
+        all_years = st.checkbox("All years", value=True, key="dl_all_years")
+        if all_years:
+            yr_start = avail_years[0]
+            yr_end   = avail_years[-1]
+        else:
+            col_ys, col_ye = st.columns(2)
+            with col_ys:
+                yr_start = st.selectbox("From", avail_years, index=0, key="dl_yr_start")
+            with col_ye:
+                yr_end = st.selectbox("To", avail_years, index=len(avail_years) - 1, key="dl_yr_end")
+            if yr_start > yr_end:
+                st.warning("'From' year must be ≤ 'To' year.")
+                yr_start, yr_end = yr_end, yr_start
+
+        df_dl = df[pd.to_numeric(df["Year"], errors="coerce").between(yr_start, yr_end)].copy()
+        yr_suffix = "all" if all_years else f"{yr_start}-{yr_end}"
+
         if export_csv:
             st.download_button(
                 label="Download CSV",
-                data=df.to_csv(index=False).encode(),
-                file_name=f"bom_rainfall_{stn_id}.csv",
+                data=df_dl.to_csv(index=False).encode(),
+                file_name=f"bom_rainfall_{stn_id}_{yr_suffix}.csv",
                 mime="text/csv",
                 use_container_width=True,
             )
@@ -812,23 +830,27 @@ if "df" in st.session_state:
             xlsx_buf = io.BytesIO()
             with pd.ExcelWriter(xlsx_buf, engine="xlsxwriter") as writer:
                 if inc_raw:
-                    df.to_excel(writer, sheet_name="Daily Rainfall", index=False)
+                    df_dl.to_excel(writer, sheet_name="Daily Rainfall", index=False)
                 if inc_dist and base is not None:
-                    dist_base, _, _, _, _ = build_base(df, rain_col, distribute=True)
+                    dist_base, _, _, _, _ = build_base(df_dl, rain_col, distribute=True)
                     dist_base.to_excel(writer, sheet_name="Daily Rainfall (Dist)", index=False)
                 if inc_annual and annual is not None:
-                    annual.to_excel(writer, sheet_name="Annual Summary", index=False)
+                    annual_dl = annual[pd.to_numeric(annual["Year"], errors="coerce").between(yr_start, yr_end)]
+                    annual_dl.to_excel(writer, sheet_name="Annual Summary", index=False)
                 if inc_pivot and pivot is not None:
-                    pivot.to_excel(writer, sheet_name="Monthly Pivot")
+                    pivot_dl = pivot.loc[pivot.index.isin(range(yr_start, yr_end + 1))]
+                    pivot_dl.to_excel(writer, sheet_name="Monthly Pivot")
                 if inc_miss_pivot_raw and miss_pivot_before is not None:
-                    miss_pivot_before.to_excel(writer, sheet_name="Missing Days (Raw)")
+                    mpb_dl = miss_pivot_before.loc[miss_pivot_before.index.isin(range(yr_start, yr_end + 1))]
+                    mpb_dl.to_excel(writer, sheet_name="Missing Days (Raw)")
                 if inc_miss_pivot_dist and miss_pivot_after is not None:
-                    miss_pivot_after.to_excel(writer, sheet_name="Missing Days (Distributed)")
+                    mpa_dl = miss_pivot_after.loc[miss_pivot_after.index.isin(range(yr_start, yr_end + 1))]
+                    mpa_dl.to_excel(writer, sheet_name="Missing Days (Distributed)")
             xlsx_buf.seek(0)
             st.download_button(
                 label="Download XLSX",
                 data=xlsx_buf,
-                file_name=f"bom_rainfall_{stn_id}.xlsx",
+                file_name=f"bom_rainfall_{stn_id}_{yr_suffix}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
             )
