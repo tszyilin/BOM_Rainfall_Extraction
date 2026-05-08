@@ -802,18 +802,19 @@ if "df" in st.session_state:
         st.divider()
         st.subheader("Download")
         all_years = st.checkbox("All years", value=True, key="dl_all_years")
+        col_ys, col_ye = st.columns(2)
+        with col_ys:
+            yr_start = st.selectbox("From", avail_years, index=0,
+                                    key="dl_yr_start", disabled=all_years)
+        with col_ye:
+            yr_end = st.selectbox("To", avail_years, index=len(avail_years) - 1,
+                                  key="dl_yr_end", disabled=all_years)
         if all_years:
             yr_start = avail_years[0]
             yr_end   = avail_years[-1]
-        else:
-            col_ys, col_ye = st.columns(2)
-            with col_ys:
-                yr_start = st.selectbox("From", avail_years, index=0, key="dl_yr_start")
-            with col_ye:
-                yr_end = st.selectbox("To", avail_years, index=len(avail_years) - 1, key="dl_yr_end")
-            if yr_start > yr_end:
-                st.warning("'From' year must be ≤ 'To' year.")
-                yr_start, yr_end = yr_end, yr_start
+        elif yr_start > yr_end:
+            st.warning("'From' year must be ≤ 'To' year.")
+            yr_start, yr_end = yr_end, yr_start
 
         df_dl = df[pd.to_numeric(df["Year"], errors="coerce").between(yr_start, yr_end)].copy()
         yr_suffix = "all" if all_years else f"{yr_start}-{yr_end}"
