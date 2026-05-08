@@ -531,30 +531,54 @@ with tab_loc:
                 st.info("Start typing a location name above to search.")
 
 with tab_pc:
+    from streamlit_searchbox import st_searchbox
     stations_df = load_stations()
     if stations_df is not None:
-        col_pc, col_km, col_pa = st.columns([2, 2, 1])
-        with col_pc:
-            postcode_q = st.text_input("Australian postcode", placeholder="e.g. 4000",
-                                       max_chars=4, key="map_postcode_q")
+        col_km, col_pa = st.columns([3, 1])
         with col_km:
             radius_km = st.slider("Radius (km)", min_value=5, max_value=300, value=50,
                                   step=5, key="map_radius_km")
         with col_pa:
             st.write("")
             only_active_p = st.checkbox("Active only", key="map_only_active_p")
+
+        def _search_postcodes(query: str):
+            if not query or len(query.strip()) < 1:
+                return []
+            try:
+                db = _postcode_db()
+                q = query.strip()
+                if q.isdigit():
+                    mask = db["postcode"].str.startswith(q)
+                else:
+                    mask = db["locality"].str.lower().str.contains(q.lower(), regex=False, na=False)
+                matches = db[mask].drop_duplicates(subset=["postcode"]).head(20)
+                return [
+                    f"{r['postcode']} — {r['locality'].title()}, {r['state']}"
+                    for _, r in matches.iterrows()
+                ]
+            except Exception:
+                return []
+
+        pc_selected = st_searchbox(
+            _search_postcodes,
+            placeholder="e.g. 4000 or Sydney",
+            label="Postcode or suburb",
+            key="pc_searchbox",
+        )
+
         disp_p = stations_df.copy()
         if only_active_p:
             max_yr = int(pd.to_numeric(stations_df["END_Y"], errors="coerce").max())
             disp_p = disp_p[pd.to_numeric(disp_p["END_Y"], errors="coerce") >= max_yr - 1]
         pc_marker = None
         map_c, map_z = {"lat": -25, "lon": 133}, 3
-        if postcode_q.strip() and len(postcode_q.strip()) == 4 and postcode_q.strip().isdigit():
+        if pc_selected:
             try:
-                with st.spinner(f"Looking up postcode {postcode_q}..."):
-                    geo = lookup_postcode(postcode_q.strip())
+                postcode = pc_selected.split(" — ")[0].strip()
+                geo = lookup_postcode(postcode)
                 if geo is None:
-                    st.warning(f"Postcode {postcode_q} not found.")
+                    st.warning(f"Postcode {postcode} not found.")
                 else:
                     pc_lat, pc_lon, pc_name = geo
                     dists = haversine_km(pc_lat, pc_lon, disp_p["LAT"].values, disp_p["LONG"].values)
@@ -564,13 +588,14 @@ with tab_pc:
                     pc_marker = (pc_lat, pc_lon, pc_name)
                     st.info(f"📍 **{pc_name}**")
             except Exception:
-                st.warning("Postcode lookup failed — geocoding service temporarily unavailable. Try again shortly.")
+                st.warning("Postcode lookup failed.")
         if pc_marker:
             cd = _render_station_map(disp_p, map_c, map_z, "map_pc", postcode_marker=pc_marker)
             if cd:
                 _show_station_card(cd)
         else:
-            st.info("Enter a postcode above to see nearby stations on the map.")
+            if not pc_selected:
+                st.info("Start typing a postcode or suburb name above to search.")
 
 with tab_ll:
     stations_df = load_stations()
