@@ -910,7 +910,7 @@ if "df" in st.session_state:
             raw_dates = pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce").dropna()
             r_min = raw_dates.min().date()
             r_max = raw_dates.max().date()
-            col_rs, col_re, col_rfmt = st.columns([1, 1, 1])
+            col_rs, col_re, col_rfmt, col_rdc = st.columns([1, 1, 1, 1])
             with col_rs:
                 raw_date_start = st.date_input("From", value=r_min, min_value=r_min, max_value=r_max,
                                                key="raw_date_start")
@@ -919,9 +919,14 @@ if "df" in st.session_state:
                                              key="raw_date_end")
             with col_rfmt:
                 raw_dl_fmt = st.radio("Format", ["CSV", "XLSX"], horizontal=True, key="raw_dl_fmt")
+            with col_rdc:
+                st.write("")
+                add_date_col = st.checkbox("Create date column", value=True, key="raw_add_date")
             df_raw_dates = pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce")
             raw_filtered = df[(df_raw_dates.dt.date >= raw_date_start) &
                               (df_raw_dates.dt.date <= raw_date_end)].copy()
+            if add_date_col:
+                raw_filtered.insert(0, "Date", df_raw_dates[raw_filtered.index].dt.strftime("%Y-%m-%d"))
             st.dataframe(raw_filtered, use_container_width=True)
 
             def _raw_to_bytes(frame, fmt):
@@ -945,7 +950,11 @@ if "df" in st.session_state:
                     use_container_width=True,
                 )
             with col_rdl2:
-                all_data, all_mime = _raw_to_bytes(df, raw_dl_fmt)
+                df_all_export = df.copy()
+                if add_date_col:
+                    df_all_export.insert(0, "Date",
+                        pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce").dt.strftime("%Y-%m-%d"))
+                all_data, all_mime = _raw_to_bytes(df_all_export, raw_dl_fmt)
                 st.download_button(
                     label=f"Download all data {raw_dl_fmt}",
                     data=all_data,
