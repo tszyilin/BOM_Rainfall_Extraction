@@ -854,7 +854,7 @@ if "df" in st.session_state:
     ))
     with col_info:
         st.markdown(f"""
-<div style="background:var(--secondary-background-color);border:1px solid var(--border-color, #dee2e6);border-radius:10px;padding:20px 28px;height:100%">
+<div style="background:var(--secondary-background-color);border:1px solid var(--border-color, #dee2e6);border-radius:10px;padding:20px 28px;height:380px;box-sizing:border-box">
   <div style="font-size:1.4em;font-weight:700;margin-bottom:4px;color:var(--text-color)">{info['name']} &nbsp; {badge} &nbsp; <a href="{bom_station_url}" target="_blank" style="font-size:0.6em;font-weight:400;color:#1a73e8;text-decoration:none">View on BOM ↗</a></div>
   <div style="color:var(--text-color);opacity:0.6;font-size:0.95em;margin-bottom:14px">Station {info['number']}</div>
   <div style="display:flex;gap:32px;flex-wrap:wrap;font-size:0.95em">
