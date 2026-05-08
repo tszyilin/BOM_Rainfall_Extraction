@@ -926,7 +926,8 @@ if "df" in st.session_state:
             raw_filtered = df[(df_raw_dates.dt.date >= raw_date_start) &
                               (df_raw_dates.dt.date <= raw_date_end)].copy()
             if add_date_col:
-                raw_filtered.insert(0, "Date", df_raw_dates[raw_filtered.index].dt.strftime("%Y-%m-%d"))
+                day_pos = raw_filtered.columns.get_loc("Day") + 1 if "Day" in raw_filtered.columns else len(raw_filtered.columns)
+                raw_filtered.insert(day_pos, "Date", df_raw_dates[raw_filtered.index].dt.strftime("%Y-%m-%d"))
             st.dataframe(raw_filtered, use_container_width=True)
 
             def _raw_to_bytes(frame, fmt):
@@ -952,8 +953,9 @@ if "df" in st.session_state:
             with col_rdl2:
                 df_all_export = df.copy()
                 if add_date_col:
-                    df_all_export.insert(0, "Date",
-                        pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce").dt.strftime("%Y-%m-%d"))
+                    _all_dates = pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce").dt.strftime("%Y-%m-%d")
+                    _day_pos = df_all_export.columns.get_loc("Day") + 1 if "Day" in df_all_export.columns else len(df_all_export.columns)
+                    df_all_export.insert(_day_pos, "Date", _all_dates)
                 all_data, all_mime = _raw_to_bytes(df_all_export, raw_dl_fmt)
                 st.download_button(
                     label=f"Download all data {raw_dl_fmt}",
@@ -967,7 +969,7 @@ if "df" in st.session_state:
             base_dates = pd.to_datetime(base["Date"], errors="coerce").dropna()
             d_min = base_dates.min().date()
             d_max = base_dates.max().date()
-            col_ds, col_de, col_fmt = st.columns([1, 1, 1])
+            col_ds, col_de, col_fmt, col_ddc = st.columns([1, 1, 1, 1])
             with col_ds:
                 date_start = st.date_input("From", value=d_min, min_value=d_min, max_value=d_max,
                                            key="dist_date_start")
@@ -976,6 +978,9 @@ if "df" in st.session_state:
                                          key="dist_date_end")
             with col_fmt:
                 dl_fmt = st.radio("Format", ["CSV", "XLSX"], horizontal=True, key="dist_dl_fmt")
+            with col_ddc:
+                st.write("")
+                dist_add_date = st.checkbox("Create date column", value=True, key="dist_add_date")
             dist_all = base.copy()
             dist_all["Date"] = pd.to_datetime(dist_all["Date"], errors="coerce")
             dist_filtered = dist_all.copy()
@@ -984,7 +989,23 @@ if "df" in st.session_state:
                     (dist_all["Date"].dt.date >= date_start) &
                     (dist_all["Date"].dt.date <= date_end)
                 ]
-            st.dataframe(dist_filtered, use_container_width=True)
+            def _reorder_date(frame):
+                if "Date" not in frame.columns:
+                    return frame
+                cols = [c for c in frame.columns if c != "Date"]
+                day_pos = cols.index("Day") + 1 if "Day" in cols else len(cols)
+                cols.insert(day_pos, "Date")
+                return frame[cols]
+
+            preview_filtered = dist_filtered.copy()
+            preview_all = dist_all.copy()
+            if dist_add_date:
+                preview_filtered = _reorder_date(preview_filtered)
+                preview_all = _reorder_date(preview_all)
+            else:
+                preview_filtered = preview_filtered.drop(columns=["Date"], errors="ignore")
+                preview_all = preview_all.drop(columns=["Date"], errors="ignore")
+            st.dataframe(preview_filtered, use_container_width=True)
 
             def _to_bytes(frame, fmt):
                 if fmt == "XLSX":
@@ -1000,7 +1021,7 @@ if "df" in st.session_state:
                          if dl_fmt == "XLSX" else "text/csv")
             col_dl1, col_dl2 = st.columns(2)
             with col_dl1:
-                filt_data, filt_mime = _to_bytes(dist_filtered, dl_fmt)
+                filt_data, filt_mime = _to_bytes(preview_filtered, dl_fmt)
                 st.download_button(
                     label=f"Download filtered {dl_fmt}",
                     data=filt_data,
@@ -1009,7 +1030,7 @@ if "df" in st.session_state:
                     use_container_width=True,
                 )
             with col_dl2:
-                all_data, all_mime = _to_bytes(dist_all, dl_fmt)
+                all_data, all_mime = _to_bytes(preview_all, dl_fmt)
                 st.download_button(
                     label=f"Download all data {dl_fmt}",
                     data=all_data,
