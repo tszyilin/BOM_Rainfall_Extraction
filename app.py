@@ -1051,6 +1051,7 @@ if "df" in st.session_state:
             chart_yr_range = st.slider(
                 "Year range", min_value=yr_min, max_value=yr_max,
                 value=(yr_min, yr_max), key="chart_yr_range",
+                on_change=lambda: st.session_state.update({"chart_single_yr": "—"}),
             )
         with col_single:
             single_yr = st.selectbox(
