@@ -927,7 +927,7 @@ if "df" in st.session_state:
                               (df_raw_dates.dt.date <= raw_date_end)].copy()
             if add_date_col:
                 day_pos = raw_filtered.columns.get_loc("Day") + 1 if "Day" in raw_filtered.columns else len(raw_filtered.columns)
-                raw_filtered.insert(day_pos, "Date", df_raw_dates[raw_filtered.index].dt.strftime("%Y-%m-%d"))
+                raw_filtered.insert(day_pos, "Date", df_raw_dates[raw_filtered.index].dt.strftime("%d/%m/%Y"))
             st.dataframe(raw_filtered, use_container_width=True)
 
             def _raw_to_bytes(frame, fmt):
@@ -953,7 +953,7 @@ if "df" in st.session_state:
             with col_rdl2:
                 df_all_export = df.copy()
                 if add_date_col:
-                    _all_dates = pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce").dt.strftime("%Y-%m-%d")
+                    _all_dates = pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce").dt.strftime("%d/%m/%Y")
                     _day_pos = df_all_export.columns.get_loc("Day") + 1 if "Day" in df_all_export.columns else len(df_all_export.columns)
                     df_all_export.insert(_day_pos, "Date", _all_dates)
                 all_data, all_mime = _raw_to_bytes(df_all_export, raw_dl_fmt)
