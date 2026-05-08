@@ -1044,12 +1044,19 @@ if "df" in st.session_state:
     if rain_col:
         st.subheader("Daily Rainfall Chart")
         plot_df = base[["Date", rain_col]].dropna(subset=["Date", rain_col]).copy()
-        fig = px.line(plot_df, x="Date", y=rain_col,
+        chart_years = sorted(plot_df["Date"].dt.year.dropna().astype(int).unique().tolist())
+        yr_min, yr_max = chart_years[0], chart_years[-1]
+        chart_yr_range = st.slider(
+            "Year range", min_value=yr_min, max_value=yr_max,
+            value=(yr_min, yr_max), key="chart_yr_range",
+        )
+        chart_df = plot_df[plot_df["Date"].dt.year.between(chart_yr_range[0], chart_yr_range[1])]
+        fig = px.line(chart_df, x="Date", y=rain_col,
                       labels={"Date": "Year", rain_col: "Rainfall (mm)"})
         fig.update_traces(
             hovertemplate="<b>%{x|%d %b %Y}</b><br>Rainfall: %{y} mm<extra></extra>"
         )
-        fig.update_xaxes(tickformat="%d %b %Y", rangeslider_visible=True)
+        fig.update_xaxes(tickformat="%d %b %Y")
         st.plotly_chart(fig, use_container_width=True)
 
         if show_monthly_bar:
