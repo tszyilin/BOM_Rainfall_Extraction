@@ -907,7 +907,53 @@ if "df" in st.session_state:
     if distribute and base is not None:
         tab_raw, tab_dist = st.tabs(["Raw Data", "Distributed Data"])
         with tab_raw:
-            st.dataframe(df, use_container_width=True)
+            raw_dates = pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce").dropna()
+            r_min = raw_dates.min().date()
+            r_max = raw_dates.max().date()
+            col_rs, col_re, col_rfmt = st.columns([1, 1, 1])
+            with col_rs:
+                raw_date_start = st.date_input("From", value=r_min, min_value=r_min, max_value=r_max,
+                                               key="raw_date_start")
+            with col_re:
+                raw_date_end = st.date_input("To", value=r_max, min_value=r_min, max_value=r_max,
+                                             key="raw_date_end")
+            with col_rfmt:
+                raw_dl_fmt = st.radio("Format", ["CSV", "XLSX"], horizontal=True, key="raw_dl_fmt")
+            df_raw_dates = pd.to_datetime(df[["Year", "Month", "Day"]], errors="coerce")
+            raw_filtered = df[(df_raw_dates.dt.date >= raw_date_start) &
+                              (df_raw_dates.dt.date <= raw_date_end)].copy()
+            st.dataframe(raw_filtered, use_container_width=True)
+
+            def _raw_to_bytes(frame, fmt):
+                if fmt == "XLSX":
+                    buf = io.BytesIO()
+                    with pd.ExcelWriter(buf, engine="xlsxwriter") as w:
+                        frame.to_excel(w, index=False, sheet_name="Raw Data")
+                    buf.seek(0)
+                    return buf.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                return frame.to_csv(index=False).encode(), "text/csv"
+
+            raw_ext = raw_dl_fmt.lower()
+            col_rdl1, col_rdl2 = st.columns(2)
+            with col_rdl1:
+                filt_data, filt_mime = _raw_to_bytes(raw_filtered, raw_dl_fmt)
+                st.download_button(
+                    label=f"Download filtered {raw_dl_fmt}",
+                    data=filt_data,
+                    file_name=f"bom_rainfall_{stn_id}_raw_{raw_date_start}_{raw_date_end}.{raw_ext}",
+                    mime=filt_mime,
+                    use_container_width=True,
+                )
+            with col_rdl2:
+                all_data, all_mime = _raw_to_bytes(df, raw_dl_fmt)
+                st.download_button(
+                    label=f"Download all data {raw_dl_fmt}",
+                    data=all_data,
+                    file_name=f"bom_rainfall_{stn_id}_raw_all.{raw_ext}",
+                    mime=all_mime,
+                    type="primary",
+                    use_container_width=True,
+                )
         with tab_dist:
             base_dates = pd.to_datetime(base["Date"], errors="coerce").dropna()
             d_min = base_dates.min().date()
