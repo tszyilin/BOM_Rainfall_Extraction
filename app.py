@@ -1049,7 +1049,7 @@ if "df" in st.session_state:
         fig.update_traces(
             hovertemplate="<b>%{x|%d %b %Y}</b><br>Rainfall: %{y} mm<extra></extra>"
         )
-        fig.update_xaxes(tickformat="%d %b %Y")
+        fig.update_xaxes(tickformat="%d %b %Y", rangeslider_visible=True)
         st.plotly_chart(fig, use_container_width=True)
 
         if show_monthly_bar:
