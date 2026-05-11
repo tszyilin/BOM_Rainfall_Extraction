@@ -887,6 +887,9 @@ if "df" in st.session_state:
     <div><span style="color:var(--text-color);opacity:0.6">Status</span><br><b style="color:var(--text-color)">{info['now']}</b></div>
     <div><span style="color:var(--text-color);opacity:0.6">Data Range</span><br><b style="color:var(--text-color)">{start_date} – {end_date}</b></div>
   </div>
+  <div style="margin-top:18px">
+    <a href="{bom_station_url}" target="_blank" style="font-size:0.9em;color:#1a73e8;text-decoration:none">View on BOM ↗</a>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
